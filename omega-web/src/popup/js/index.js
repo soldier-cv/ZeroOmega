@@ -42,9 +42,9 @@
     });
   }
 
-  function addTempRule(domain, profileName) {
+  function addTempRule(domain, profileName, toggle) {
     $script.ready('om-target', function() {
-      OmegaTargetPopup.addTempRule(domain, profileName, closePopup);
+      OmegaTargetPopup.addTempRule(domain, profileName, toggle, closePopup);
     });
   }
 

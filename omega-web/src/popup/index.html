@@ -8,15 +8,9 @@
 </head>
 <body>
   <ul class="om-nav">
-    <li class="om-nav-item" id="js-profile-tpl">
-      <a href="#" id="js-direct" role="button">
-        <span class="glyphicon glyphicon-transfer" style="color: #aaa;"></span>
-        <span class="om-profile-name"></span>
-      </a>
-    </li>
-    <li class="om-nav-item">
-      <a href="#" id="js-system" role="button">
-        <span class="glyphicon glyphicon-off"></span>
+    <li class="om-nav-item om-hidden" id="js-profile-tpl">
+      <a href="#" role="button">
+        <span class="glyphicon"></span>
         <span class="om-profile-name"></span>
       </a>
     </li>
@@ -26,22 +20,46 @@
         <span class="om-reqinfo-text"></span>
       </a>
     </li>
-    <li class="om-divider"></li>
-    <li class="om-divider" id="js-profiles-end"></li>
-    <li class="om-nav-item om-nav-addrule">
-      <a href="../popup.html#!addRule" id="js-addrule" role="button">
-        <span class="glyphicon glyphicon-plus"></span>
-        <span id="js-addrule-label"></span>
-      </a>
+    <li class="om-section om-hidden" id="js-page-section">
+      <div class="om-section-title" id="js-page-title"></div>
+      <div class="om-card om-page-card">
+        <div class="om-page-host">
+          <span class="glyphicon glyphicon-globe"></span>
+          <span class="om-page-host-text" id="js-page-host"></span>
+        </div>
+        <div class="om-nav-item om-temprule om-has-dropdown">
+          <a href="#" id="js-temprule" role="button">
+            <span class="glyphicon glyphicon-filter"></span>
+            <span class="om-temprule-label" id="js-temprule-label"></span>
+            <span class="om-temprule-state" id="js-temprule-state"></span>
+            <span class="om-caret"></span>
+          </a>
+        </div>
+      </div>
     </li>
-    <li class="om-nav-item om-nav-temprule om-has-dropdown">
-      <a href="#" id="js-temprule" role="button">
-        <span class="glyphicon glyphicon-filter"></span>
-        <span>
-          <span class="om-page-domain"></span>
-          <span class="om-caret"></span>
-        </span>
-      </a>
+    <li class="om-section">
+      <div class="om-section-title" id="js-profiles-title"></div>
+      <div class="om-card">
+        <div class="om-nav-item">
+          <a href="#" id="js-direct" role="button">
+            <span class="glyphicon glyphicon-transfer"></span>
+            <span class="om-profile-name"></span>
+          </a>
+        </div>
+        <div class="om-nav-item">
+          <a href="#" id="js-system" role="button">
+            <span class="glyphicon glyphicon-off"></span>
+            <span class="om-profile-name"></span>
+          </a>
+        </div>
+        <div class="om-divider" id="js-profiles-end"></div>
+        <div class="om-nav-item om-nav-addrule">
+          <a href="../popup.html#!addRule" id="js-addrule" role="button">
+            <span class="glyphicon glyphicon-plus"></span>
+            <span id="js-addrule-label"></span>
+          </a>
+        </div>
+      </div>
     </li>
     <li class="om-divider"></li>
     <li class="om-nav-item">

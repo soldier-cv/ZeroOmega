@@ -1039,6 +1039,48 @@ msgstr "反馈问题"
 msgid "popup_errorLog"
 msgstr "保存错误日志"
 
+msgid "popup_tempRuleScopeSubdomain"
+msgstr "本子域"
+
+msgid "popup_tempRuleScopeDomain"
+msgstr "整个主域"
+
+msgid "popup_tempRuleAppliesTo"
+msgstr "作用于 $DOMAIN$"
+
+msgid "popup_tempRuleScope"
+msgstr "作用域"
+
+msgid "popup_tempRuleApplyProfile"
+msgstr "应用情景模式"
+
+msgid "popup_tempRuleRemove"
+msgstr "撤销该作用域的临时规则"
+
+msgid "popup_tempRuleLabel"
+msgstr "临时规则"
+
+msgid "popup_tempRuleNone"
+msgstr "未设置"
+
+msgid "popup_tempRuleUnavailable"
+msgstr "不可用"
+
+msgid "popup_tempRuleUnavailableHelp"
+msgstr "当前全局情景模式不支持临时规则。切换到自动切换等情景模式后即可使用。"
+
+msgid "popup_tempRuleHelp"
+msgstr "临时规则仅在本浏览器会话中生效，优先于全局情景模式。"
+
+msgid "popup_sectionPage"
+msgstr "本页路由"
+
+msgid "popup_sectionProfiles"
+msgstr "全局情景模式"
+
+msgid "popup_current"
+msgstr "当前"
+
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$个资源未加载"
 

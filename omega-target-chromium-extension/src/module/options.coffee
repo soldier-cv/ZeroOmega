@@ -357,14 +357,17 @@ class ChromeOptions extends OmegaTarget.Options
           return result
       return result if url.substr(0, 6) == 'about:'
       return result if url.substr(0, 4) == 'moz-'
-      domain = OmegaPac.getBaseDomain(Url.parse(url).hostname)
+      host = Url.parse(url).hostname
+      domain = OmegaPac.getBaseDomain(host)
       subdomain = OmegaPac.getSubdomain(url)
 
       return {
         url: url
         domain: domain
+        host: host
         subdomain: subdomain
         tempRuleProfileName: @queryTempRule(domain)
+        tempRuleHostProfileName: @queryTempRule(host)
         errorCount: errorCount
       }
 

@@ -913,6 +913,9 @@ class Options
 
   ###*
   # Add a temp rule.
+  # The domain may be either a base domain (e.g. example.com) or a full
+  # hostname (e.g. a.example.com) to scope the rule to a subdomain; a rule for
+  # a subdomain is effective for that host and all of its subdomains.
   # @param {String} domain The domain for the temp rule.
   # @param {String} profileName The profile to apply for the domain.
   # @param {1, -1, undefined, null, 0}
@@ -960,7 +963,7 @@ class Options
           pattern: '*.' + domain
         profileName: profileName
         isTempRule: true
-      @_tempProfile.rules.push(rule)
+      @_insertTempRule(rule, domain)
       @_tempProfileRules[domain] = rule
       changed = 1
 
@@ -980,7 +983,44 @@ class Options
       Promise.resolve()
 
   ###*
-  # Find a temp rule by domain.
+  # Insert a temp rule into the temp profile.
+  # Rules with a more specific domain (more labels) are placed before less
+  # specific ones, because SwitchProfile applies the first matching rule: a
+  # rule for a.example.com added after a rule for example.com would otherwise
+  # be shadowed by the latter and never take effect.
+  # @private
+  # @param {{}} rule The rule to insert.
+  # @param {String} domain The domain of the rule.
+  ###
+  _insertTempRule: (rule, domain) ->
+    level = domain.split('.').length
+    rules = @_tempProfile.rules
+    index = rules.length
+    for existing, i in rules
+      existingDomain = @_tempRuleDomain(existing)
+      existingLevel = if existingDomain
+        existingDomain.split('.').length
+      else
+        Infinity
+      if existingLevel <= level
+        index = i
+        break
+    rules.splice(index, 0, rule)
+
+  ###*
+  # Extract the domain of a temp rule from its condition pattern.
+  # @private
+  # @param {{}} rule A temp rule.
+  # @returns {?String} The domain, or null if it cannot be determined.
+  ###
+  _tempRuleDomain: (rule) ->
+    pattern = rule?.condition?.pattern
+    return null unless typeof pattern == 'string'
+    if pattern.substring(0, 2) == '*.' then pattern.substring(2) else pattern
+
+  ###*
+  # Find a temp rule by its exact domain key, which is either the base domain
+  # or the full hostname used when the rule was added.
   # @param {String} domain The domain of the temp rule.
   # @returns {Promise<?String>} The profile name for the domain, or null if such
   # rule does not exist.

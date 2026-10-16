@@ -118,11 +118,34 @@
 - **验证（2026-10-16）**：`npm run build` 全绿（coffeelint 全过，零 warning）；构建产物 grep：旧 sync 标识零残留、`OptionsBackup` / 三个备份方法已入 bundle；omega-target 测试 6 passing / 0 failing（`options_sync` 测试已删）；omega-pac 142 passing / 1 failing（既有 SOCKS5 失败，与改动无关）。
 - **待办**：实机确认（需重载扩展；`_locales` 重建后才生效）。
 
-### R8. iOS 风格主题改造 + 设置页打磨 — 状态：**待开始**（2026-10-16）
+### R8. iOS 风格主题改造 + 设置页打磨 — 状态：**代码完成，构建通过，本地预览已核验，待实机确认**（2026-10-16）
 
 - **背景**：华总希望界面偏 iOS 风格；借机打磨设置页观感。
 - **已确认决策（D10）**：改写三套内置主题 `default-light` / `default-dark` / `default-auto` 的 base16 调色板为 iOS system 色系；`partials/theme.jade` 文案补 i18n；`base.css` 轻量打磨；**不改动 / 不删除他人主题列表**（`themes.json` 的 `others`）。
-- **状态**：待开始（排在 Stage B 之后）。
+- **实现（2026-10-16）**：
+  - 调色板（`omega-web/lib/themes/`）：`variable.css`（未选主题时的默认值，浅色）、`default-light.css`、`default-dark.css`、`default-auto.css`（浅色块 + `@media (prefers-color-scheme: dark)` 深色块）改为 iOS system 色系映射：
+
+    | 变量 | 语义 | 浅色 | 深色 |
+    |---|---|---|---|
+    | base00 | 页面 / 控件底色 | `#ffffff` | `#1c1c1e` |
+    | base01 | 次级表面（下拉 / well / 悬停） | `#f2f2f7` | `#2c2c2e` |
+    | base02 | 边框 / 选中背景 | `#d1d1d6` | `#3a3a3c` |
+    | base03 | 弱化文字（help-block 等） | `#8e8e93` | `#98989d` |
+    | base04 / 06 / 07 | 其余前景与「浅背景」 | `#3c3c43` / `#000000` / `#000000` | `#c7c7cc` / `#f2f2f7` / `#ffffff` |
+    | base05 | 正文 | `#1c1c1e` | `#ffffff` |
+    | base08 | negative（红） | `#ff3b30` | `#ff453a` |
+    | base09 / 0A | primary（链接）/ info（选中态） | `#007aff` | `#0a84ff` |
+    | base0B | positive（绿） | `#34c759` | `#30d158` |
+    | base0E | warning（橙） | `#ff9500` | `#ff9f0a` |
+    | base0C / 0D / 0F | 备用（青 / 靛 / 棕） | `#32ade6` / `#5856d6` / `#a2845e` | `#64d2ff` / `#5e5ce6` / `#ac8e68` |
+
+  - `base0A`（infoColor，驱动侧边栏选中项 / info 提示 / 焦点描边）取 systemBlue，与 `base09`（primaryColor，链接）同色——iOS 的链接与选中态同为蓝。
+  - 四份调色板均加 `color-scheme`（浅色 / 深色；auto 两态各一），让原生控件与滚动条跟随主题。
+  - `base.css` 末尾新增「iOS-style polish」段（**只做覆盖，不改既有规则**）：`::selection`、`::placeholder`、`accent-color`（复选框 / 单选框用 iOS 蓝）、控件圆角 6px（含 `.dropdown-menu` 首尾项、`.input-group-addon` 对齐）、`.form-control:focus` 改为 3px 柔光环 + infoColor 描边、`.btn:hover` 硬描边由 `--defaultForeground` 改为 `--highlightBackground`、滚动条 8px。
+  - `partials/theme.jade`：`Theme / Dark / Light / Auto / Clear / CSS Wiki` 硬编码英文改走 i18n（`options_theme` / `options_themeDark` / `options_themeLight` / `options_themeAuto` / `options_themeClear` / `options_themeCssWiki`，`en_US` + `zh_CN` 同步）。
+  - `src/less/options.less`：删除 Stage B 后失效的 `.use-built-in-sync-enhance-tip` / `.sync-form *` 死样式。
+- **验证（2026-10-16）**：`npm run build` 全绿；构建产物中调色板 / `theme.html` / `_locales` 文案均含新内容；本地静态预览（临时目录，不入库）逐项核对浅色 / 深色下的导航选中项、表单（input-group / disabled / 焦点环）、按钮、alert、表格、复选框与 popup 导航项，`var(--infoColor)` 与焦点描边经 `getComputedStyle` 确认为 `rgb(0, 122, 255)`。
+- **待办**：实机确认（需重载扩展；`_locales` 重建后才生效）。
 
 ## 4. 项目基础架构
 

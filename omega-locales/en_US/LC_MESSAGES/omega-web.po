@@ -464,6 +464,21 @@ msgstr "Builtin"
 msgid "options_theme"
 msgstr "Theme"
 
+msgid "options_themeDark"
+msgstr "Dark"
+
+msgid "options_themeLight"
+msgstr "Light"
+
+msgid "options_themeAuto"
+msgstr "Auto"
+
+msgid "options_themeClear"
+msgstr "Clear"
+
+msgid "options_themeCssWiki"
+msgstr "Cascading Style Sheets (CSS) Wiki"
+
 msgid "options_builtinProfile"
 msgstr "Builtin Profiles"
 

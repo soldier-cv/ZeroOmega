@@ -438,6 +438,21 @@ msgstr "应用内置"
 msgid "options_theme"
 msgstr "主题"
 
+msgid "options_themeDark"
+msgstr "深色"
+
+msgid "options_themeLight"
+msgstr "浅色"
+
+msgid "options_themeAuto"
+msgstr "跟随系统"
+
+msgid "options_themeClear"
+msgstr "清除"
+
+msgid "options_themeCssWiki"
+msgstr "层叠样式表（CSS）维基百科"
+
 msgid "options_builtinProfile"
 msgstr "内置情境模式"
 

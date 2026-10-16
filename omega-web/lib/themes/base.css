@@ -435,3 +435,86 @@ main .page-header {
   background-color: var(--lighterBackground);
   border-color: var(--lighterBackground);
 }
+
+/**
+* iOS-style polish
+**/
+
+::selection {
+  background-color: var(--selectionBackground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--highlightBackground);
+  opacity: 1;
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--primaryColor);
+}
+
+.form-control,
+.btn,
+.input-group-addon,
+.well,
+.alert,
+.dropdown-menu {
+  border-radius: 6px;
+}
+
+.dropdown-menu > li:first-child > a {
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+}
+
+.dropdown-menu > li:last-child > a {
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+.form-control {
+  -webkit-transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-control:focus {
+  border-color: var(--infoColor);
+  box-shadow: 0 0 0 3px var(--selectionBackground);
+  -webkit-box-shadow: 0 0 0 3px var(--selectionBackground);
+}
+
+.btn {
+  -webkit-transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn:hover,
+.btn-default.active.focus,
+.btn-default.active:focus,
+.btn-default.active:hover,
+.btn-default:active.focus,
+.btn-default:active:focus,
+.btn-default:active:hover,
+.open > .dropdown-toggle.btn-default.focus,
+.open > .dropdown-toggle.btn-default:focus,
+.open > .dropdown-toggle.btn-default:hover {
+  outline: 2px solid var(--highlightBackground);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--highlightBackground);
+}

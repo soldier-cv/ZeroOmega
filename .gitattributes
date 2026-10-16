@@ -1,0 +1,5 @@
+# CoffeeScript 源码在工作区强制使用 LF。
+# 原因：coffeelint 的 max_line_length 规则对“整行 URL 注释”的豁免正则
+# (/^\s*\#\s*http[^\s]+$/) 无法匹配带 CR 的行尾；在 core.autocrlf=true 的
+# Windows 检出下（工作区 CRLF）会误报超长行，导致 grunt / coffeelint 失败。
+*.coffee text eol=lf

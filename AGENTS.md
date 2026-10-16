@@ -37,7 +37,7 @@
 
 > 新需求一律追加到本节；写清：背景 / 已确认决策 / 现状与 workaround / 已知缺陷 / 相关代码 / 状态。
 
-### R1. 当前子域级临时路由（Temp Rule） — 状态：**已实现**（2026-10-16；单元测试通过，待实机验证）
+### R1. 当前子域级临时路由（Temp Rule） — 状态：**已验证**（2026-10-16；单元测试 + 实机验证通过）
 
 - **背景**：维护者日常在 `postest.findfine.com` 这类开发子域上调试；auto switch 提供的是**主域级固定路由**，而 popup 里的**临时规则**（漏斗入口）只能按主域（`findfine.com`）设置，无法“只对当前子域临时生效、不影响主域与其它子域”。
 - **真实使用场景（2026-10-16 补充）**：一个主域名对应多个环境子域名；auto switch 已按环境配置：**开发子域 → FIDDLER、测试子域 → 直连、生产子域 → 代理**。痛点：偶尔需要把**开发子域临时改走直连**（去连对应服务器上的开发环境），但切换全局 profile 会把**所有标签**一起切走，导致其它标签上的生产环境失效；改 auto switch 规则又是永久改动、来回改太烦。→ 需要“只对该子域生效、不影响其它标签 / 环境”的临时覆盖。
@@ -52,7 +52,7 @@
   - 测试：`omega-target/test/temp_rules.coffee` 新增 6 例（插入顺序 / 匹配最具体规则 / 精确查询 / 二次点击撤销）。
 - **其他入口（保持可用，同样受益）**：① “N 资源未加载” → 详情模式 → “Add temp condition”；② 网络监测页规则编辑器（带“子域层级”切换按钮）——两者都走同一 `addTempRule`/顺序逻辑。
 - **原缺陷（均已在本次修复）**：① 子域规则被主域规则静默遮蔽；② 子域规则无法在漏斗高亮 / 撤销。
-- **待验证**：实机加载 `omega-target-chromium-extension/build`，验证漏斗作用域切换与真实路由（场景：auto switch 下 dev 子域临时直连，生产不受影响）。
+- **实机验证（2026-10-16）**：重载扩展后，子域规则的设置 / 高亮 / 撤销与实机路由行为正常。
 - **相关代码**：
   - 核心：`omega-target/src/options.coffee`（`getTempRules` / `addTempRule` / `queryTempRule` / session 恢复）
   - 扩展侧：`omega-target-chromium-extension/src/module/options.coffee`（`getPageInfo`，`chrome.storage.session` 持久化）
@@ -61,7 +61,7 @@
   - 管理器：`omega-web/src/popup/temp_rules/`
   - 匹配语义：`omega-pac/src/conditions.coffee`（`HostWildcardCondition`）——`*.x.y` 匹配 `x.y` 本身及其任意深度子域；裸 host 精确匹配
 
-### R4. popup 菜单重构美化 + 本页路由表达 — 状态：**已实现**（2026-10-16；本地预览逐场景核验，待实机确认）
+### R4. popup 菜单重构美化 + 本页路由表达 — 状态：**已验证**（2026-10-16；本地预览逐场景核验 + 实机确认）
 
 - **背景**：R1 实机查看 popup 时华总提出两点：① 临时规则生效时主列表仍高亮 `auto switch`，与下拉里高亮的 `[直接连接]`（临时规则目标）形成“双重高亮”，用户困惑“究竟走的什么路由”；② 下拉内部的作用域选择（子域/主域）样式与列表项混同、域名被截断（如 `postest.findfine.c…`），看不出可点。要求“整个菜单做个美化重构”。
 - **已确认决策**：菜单分区化——「本页路由」卡片 + 「全局情景模式」列表，两个概念在视觉上彻底分开；本页卡片直接回答“本页走什么”：显示当前命中的临时规则（profile chip），未设置/不可用时给出明确文案与说明 tooltip；作用域选择改为**分段控件**（本子域 / 整个主域）+ “作用于 `<host>`”全文展示（不截断）；全局列表当前项加「当前」标签。**仅重构表达，不改路由语义**（D1/D5 不变：临时规则优先于 base、子域规则优先于主域规则）。
@@ -71,9 +71,10 @@
   - `omega-web/src/popup/js/index.js`：`addTempRule(domain, profileName, toggle)` 透传 toggle（-1 = 强制删除，与 temp_rules 管理器、network 页调用约定一致）；
   - `omega-web/src/popup/js/i18n.js`：补分区标题与临时规则标签；
   - `omega-web/src/popup/css/index.css`：整体重写（系统字体栈；白色圆角卡片 + 灰色分区标题；hover/focus 环；chip；分段控件；下拉内嵌面板；琥珀色警告条）；
+  - 实机修订：`updateOtherItems` 隐藏「添加条件」行时同步隐藏其后分隔线（消除卡片底部的悬空线）。
   - i18n（`en_US` + `zh_CN` 同步）：新增 `popup_sectionPage` / `popup_sectionProfiles` / `popup_tempRuleLabel` / `popup_tempRuleNone` / `popup_tempRuleUnavailable` / `popup_tempRuleUnavailableHelp` / `popup_tempRuleHelp` / `popup_tempRuleScope` / `popup_tempRuleAppliesTo`（`$DOMAIN$`）/ `popup_tempRuleApplyProfile` / `popup_tempRuleRemove` / `popup_current`；改义 `popup_tempRuleScopeSubdomain` / `popup_tempRuleScopeDomain` 为短标签（完整域名移到“作用于”行）。
 - **验证方式**：本地临时静态预览（本机临时目录下的 harness：模拟 `chrome.*` / `OmegaTargetPopup`，直接读取源文件，不入库）逐场景截图核对：有子域规则（高亮 chip + 撤销行）/ 无规则 / 仅主域规则 / 单层域名（无分段控件）/ 全局不支持临时规则（不可用）/ 资源未加载警告 / 键盘帮助徽标；`npm run build` 通过，构建产物与源文件逐字节一致。
-- **待验证**：实机加载 `omega-target-chromium-extension/build`，确认交互（点击应用/撤销、键盘导航与 `T` 快捷键、帮助徽标）。
+- **实机确认（2026-10-16）**：重载扩展后确认界面分区、临时规则表达、作用域选择与应用 / 撤销链路符合预期。
 - **注意（后续改动约束）**：popup 的 `js-*` id 与 `.om-nav` 根节点是键盘导航（`keyboard.js` TreeWalker 按 tab 序行走）与 `keyboard_help.js` 帮助徽标的依赖；菜单行结构请保持“`.om-nav-item > a`（flex：图标 + 名称 + 附属元素）”。
 
 ### R2. （已澄清，无需实现）直连 / 系统代理 的使用习惯 — 状态：**关闭（2026-10-16）**
@@ -128,6 +129,7 @@ cd omega-target && npm test
 - 本机（2026-10-16，Node 22）测试基线：omega-pac 142 通过 / **1 个既有失败**（`Profiles #pacResult` SOCKS5，疑依赖版本差异，与改动无关）；omega-target：`temp_rules` 6 个新增用例全通过，`options_sync` 有 **5 个既有失败**（sinon 1.x 定时器与 Node 22 不兼容）。新增/修改功能请对照此基线判断是否引入回归。
 - **构建（2026-10-16 已完整跑通一次）**：`npm run deps` → `npm run build` 全程无错误（bower 依赖仍可从 GitHub 解析），产出 `omega-target-chromium-extension/build`（可加载的未打包扩展）。各模块 `grunt` 的 `default` 均含 `coffeelint`；改完代码本地至少跑对应模块的 `grunt`（或整体 `npm run build`）。
 - **行尾要求（重要）**：仓库根 `.gitattributes` 固定 `*.coffee text eol=lf`。coffeelint 的 `max_line_length` 对“整行 URL 注释”的豁免匹配不了 CRLF 行尾，Windows（`core.autocrlf=true`）检出为 CRLF 时会误报超长行、让 `grunt` 失败；**不要删该文件，也不要把 coffee 工作区改回 CRLF**。
+- **文案目录缓存（重要）**：`build/_locales/*/messages.json` 在**扩展加载时**一次性读入内存；改动 `omega-locales` 后必须「重新加载扩展」才生效。popup 的 HTML/CSS/JS 每次打开会从磁盘重读，因此会出现“新界面 + 空文案”的假象，勿误判为渲染 bug（2026-10-16 实机踩坑）。
 
 ### 4.4 关键运行机制
 

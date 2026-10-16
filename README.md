@@ -1,6 +1,9 @@
 ZeroOmega, forked from SwitchyOmega compatible with manifest v3
 ============
 
+> 本仓库是**个人 fork**（`soldier-cv/ZeroOmega`），用于自用定制：**不主动与上游同步**。
+> 工作规约、项目基础架构与需求台账见 **[AGENTS.md](AGENTS.md)**（开工前请先阅读）。
+
 [Chrome Web Store](https://chromewebstore.google.com/detail/pfnededegaaopdmhkdmcofjmoldfiped)
 
 [Microsoft Edge Addons](https://microsoftedge.microsoft.com/addons/detail/zeroomegaproxy-switchy-/dmaldhchmoafliphkijbfhaomcgglmgd)

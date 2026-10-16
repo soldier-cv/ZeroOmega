@@ -407,97 +407,56 @@ msgstr "Restore from file"
 msgid "options_restoreLocalHelp"
 msgstr "Restore your ZeroOmega options from a local file."
 
-msgid "options_restoreOnline"
-msgstr "Restore from online"
+msgid "options_group_webdavBackup"
+msgstr "WebDAV backup"
 
-msgid "options_restoreOnlinePlaceholder"
-msgstr "Options file URL (e.g. 'http://example.com/switchy.bak')"
+msgid "options_backupUri"
+msgstr "WebDAV URL"
 
-msgid "options_restoreOnlineSubmit"
-msgstr "Restore"
+msgid "options_backupUriPlaceholder"
+msgstr "e.g. https://dav.example.com/remote.php/dav/files/user/"
 
-msgid "options_group_syncing"
-msgstr "Syncing (Experimental)"
-
-msgid "options_syncEnable"
-msgstr "Enable Syncing"
-
-msgid "options_useBuiltInSyncEnhance"
-msgstr "Enhance your remote sync experience with built-in browser sync"
-
-msgid "options_useBuiltInSyncEnhanceTip"
-msgstr "<li>After the user logs in to the browser account, the extension will be automatically downloaded and all synchronized settings will be restored</li>"
-"<li>When the configuration items are changed, they will be synchronized to other browsers immediately. (When this feature is not turned on, the application will only check whether the configuration has changed every 5 minutes)</li>"
-
-msgid "options_syncEnableForce"
-msgstr "Download from Syncing"
-
-msgid "options_syncDisable"
-msgstr "Disable syncing"
-
-msgid "options_syncReset"
-msgstr "Clear remote copy"
-
-msgid "options_syncPristineHelp"
-msgstr ""
-"You can now automatically synchronize your settings and profiles across all "
-"your desktop devices running Chrome browser."
-
-msgid "options_syncSyncAlert"
-msgstr "Your options are automatically synchronized with your other devices."
-
-msgid "options_syncSyncHelp"
-msgstr ""
-"Please note that you must sign in to Chrome on each of your devices ("
-"including this one) for the syncing to actually work. <br> You may check this "
-"section on other devices to ensure that it is working."
-
-msgid "options_syncConflictAlert"
-msgstr "You have uploaded a copy of your options on another device via syncing."
-
-msgid "options_syncConflictHelp"
-msgstr ""
-"You may download the remote copy to your device if you like. <br>However, "
-"doing so would <b>overwrite your existing settings and profiles</b> on this "
-"device."
-
-msgid "options_syncUnsupportedHelp"
-msgstr ""
-"Options syncing is not supported on your platform or browser. For now, only "
-"Chrome browser on desktop is supported."
-
-msgid "options_syncBackend"
-msgstr "Sync Backend"
-
-msgid "options_syncBackendGist"
-msgstr "GitHub Gist"
-
-msgid "options_syncBackendWebdav"
-msgstr "WebDAV"
-
-msgid "options_syncUri"
-msgstr "Sync URI"
-
-msgid "options_syncUriPlaceholderGist"
-msgstr "Gist Id e.g. https://gist.github.com/{username}/{Gist Id}"
-
-msgid "options_syncUriPlaceholderWebdav"
-msgstr "WebDAV URL e.g. https://dav.example.com/path"
-
-msgid "options_syncWebdavUsername"
+msgid "options_backupUsername"
 msgstr "Username"
 
-msgid "options_syncWebdavUsernamePlaceholder"
-msgstr "WebDAV Username"
+msgid "options_backupUsernamePlaceholder"
+msgstr "Username for WebDAV authentication"
 
-msgid "options_syncWebdavPassword"
+msgid "options_backupPassword"
 msgstr "Password"
 
-msgid "options_syncWebdavPasswordPlaceholder"
-msgstr "WebDAV Password"
+msgid "options_backupPasswordPlaceholder"
+msgstr "Password for WebDAV authentication"
 
-msgid "options_syncWebdavHelp"
-msgstr "Enter your WebDAV service URL. Files will be stored in <URI>/zeroomega/"
+msgid "options_backupAuto"
+msgstr "Auto backup"
+
+msgid "options_backupAutoHelp"
+msgstr "Automatically back up after options change."
+
+msgid "options_backupSave"
+msgstr "Save settings"
+
+msgid "options_backupNow"
+msgstr "Back up now"
+
+msgid "options_backupRestore"
+msgstr "Restore from backup"
+
+msgid "options_backupLast"
+msgstr "Last backup:"
+
+msgid "options_backupLastNever"
+msgstr "Never"
+
+msgid "options_backupSaved"
+msgstr "Backup settings saved."
+
+msgid "options_backupSuccess"
+msgstr "Backup completed."
+
+msgid "options_backupRestoreSuccess"
+msgstr "Options restored from backup."
 
 msgid "options_builtin"
 msgstr "Builtin"

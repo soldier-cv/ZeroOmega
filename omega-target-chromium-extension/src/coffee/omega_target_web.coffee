@@ -205,10 +205,11 @@ angular.module('omegaTarget', []).factory 'omegaTarget', ($q) ->
       chrome.tabs.create url: 'chrome://extensions/?id=' + chrome.runtime.id
     openShortcutConfig: ->
       chrome.tabs.create url: 'chrome://extensions/configureCommands'
-    setOptionsSync: (enabled, args) ->
-      callBackground('setOptionsSync', enabled, args)
-    resetOptionsSync: (args) -> callBackground('resetOptionsSync', args)
-    checkOptionsSyncChange: -> callBackground('checkOptionsSyncChange')
+    backupOptionsNow: -> callBackground('backupOptionsNow')
+    restoreOptionsFromBackup: ->
+      callBackground('restoreOptionsFromBackup')
+    setOptionsBackupConfig: (config) ->
+      callBackground('setOptionsBackupConfig', config)
     setRequestInfoCallback: (callback) ->
       requestInfoCallback = callback
 

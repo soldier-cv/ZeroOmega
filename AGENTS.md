@@ -90,7 +90,7 @@
   - 新增根目录 `.gitattributes`（`*.coffee text eol=lf`）：修复 Windows 检出（CRLF）下 coffeelint 误报长 URL 注释、`grunt` 直接失败的问题（详见 §4.3“行尾要求”）；
   - 本机首次完整跑通 `npm run deps` + `npm run build`，产出可加载扩展（见 §4.3）。
 
-### R6. 设置页精简（移除高级条件开关 / 快速切换 / 旧版规则导出） — 状态：**代码完成，构建与测试通过，待提交**（2026-10-16）
+### R6. 设置页精简（移除高级条件开关 / 快速切换 / 旧版规则导出） — 状态：**已完成并提交**（2026-10-16；提交 `4437f28`）
 
 - **背景**：华总自用精简——不需要「显示高级切换条件」开关（永久高级即可）、不用「快速切换」（点击图标循环切 profile）、不用「导出旧版规则列表」。
 - **已确认决策（D8）**：① 条件类型固定为 `advancedConditionTypes`；② 快速切换端到端移除；③ 导入导出删「导出旧版规则列表」勾选；④ 顺手清理关联死代码。
@@ -102,12 +102,21 @@
 - **语义说明**：TrueCondition→HostWildcardCondition(`*`) 转换现在无条件执行（原先仅「基本模式」下执行）；曾启用高级模式的 profile 首次打开时其 `TrueCondition` 会被改写（语义等价）。规则导出统一 `.sorl`。
 - **验证（2026-10-16）**：源码与构建产物 grep 无残留；`npm run build` 全绿（coffeelint 全过；jade 仅 2 条既有 warning）；omega-target 测试 14 passing / 5 failing（失败均为 `options_sync` 既有失败，Stage B 将删除该文件及其测试）。
 
-### R7. WebDAV 自动备份 / 恢复（替代 Gist 同步与在线恢复） — 状态：**实施中**（2026-10-16）
+### R7. WebDAV 自动备份 / 恢复（替代 Gist 同步与在线恢复） — 状态：**代码完成，构建与测试通过，待实机确认**（2026-10-16）
 
 - **背景**：替代「Gist 同步」与「在线恢复」（依赖 GitHub / 上游服务，不稳定且不再需要）。华总自用 WebDAV（群晖 / Nextcloud 等）作为单一可信备份点。
 - **已确认决策（D9）**：远端**单份最新**（上传新文件后删除旧文件）+「自动备份」开关（默认关）+ 手动「立即备份 / 从备份恢复」；备份内容 = 完整 options JSON（沿用 `.bak` 格式；临时规则在 `chrome.storage.session`，天然不在备份内）；WebDAV 布局复用既有客户端约定（`zeroomega/` 子目录 + `zeroomega-commit.txt` + `zeroomega-<20hex>.json`）；凭据仅存本地（`omega.local.*`）。
-- **实现要点（进行中）**：新增 `module/options_backup.coffee`（WebDAV 客户端 + 备份管理器）；`background.coffee` 把方法挂到 options 实例供消息路由（`backupOptionsNow` / `restoreOptionsFromBackup` / `setOptionsBackupConfig`）；删除 `OptionsSync`、`ChromeSyncStorage`、同步实现（除 WebDAV 传输层）及 `options_sync` 测试；`partials/io.jade` + `controllers/io.coffee` 重做备份设置区。
-- **细节随实现完成后回填。**
+- **实现（2026-10-16）**：
+  - 新增 `module/options_backup.coffee`：自包含 `WebDavClient`（Basic / Bearer 认证、MKCOL 建目录、PUT 上传、GET 下载、DELETE 旧文件；移植自旧 `sync_impl_webdav.coffee`，`token` → `password`）+ `OptionsBackup` 管理器（`getConfig` / `setConfig` / `watch` / `backupNow` / `restore`）。
+  - 自动备份触发：包装实例方法 `options._setOptions`（options 变更的唯一持久化入口），条件 `changes and (args?.persist ? true)`，2s 防抖；恢复后 15s 内抑制自动备份（避免 reset 触发的回推）；`_backupInProgress` / `_restoreInProgress` 防重入。
+  - state 键：`optionsBackup.uri` / `.username` / `.password` / `.autoBackup` / `.lastBackup` / `.lastBackupCommit` / `.lastBackupState`（经 `omega.local.` 前缀本地存储）。
+  - extension：`background.coffee` 删 `BUILTINSYNCKEY`、sync 初始化与 `chrome.storage.sync` watch 块、`_syncWatchStop`、`3.3.11` 空迁移分支；options 构造去掉 sync 参数（`new Options(storage, state, Log, proxyImpl)`）；把 `backupOptionsNow` / `restoreOptionsFromBackup` / `setOptionsBackupConfig` 挂到 options 实例供消息路由（未知方法 → target = options）；`omega_target_web.coffee` 三个 sync 方法换成上述三个；删 `module/sync/`（3 文件）与 `module/sync_storage.coffee`，`module/index.coffee` 用 `OptionsBackup` 替换 `SyncStorage`。
+  - omega-target：删 `src/options_sync.coffee`、`test/options_sync.coffee`、`index.coffee` 的 `OptionsSync` 导出、`src/options.coffee` 的 `transformValueForSync` / sync 构造参数 / `setOptionsSync` 等三方法及全部 sync 残留、`log.coffee` 的 gist / sync 敏感键。
+  - omega-web：`partials/io.jade` + `controllers/io.coffee` 重写备份设置区（URI / 用户名 / 密码 / 自动备份开关 / 保存设置 / 立即备份 / 从备份恢复 / 上次备份时间与状态），删「在线恢复」与整个「同步」区；`controllers/master.coffee` 删 `syncOptions` 状态读取。
+  - i18n：`en_US` + `zh_CN` 删 sync / restoreOnline 族 msgid，新增 `options_group_webdavBackup` + `options_backup*`（17 条）；其它语言由 Weblate 托管，不手改。
+- **交互细节**：`保存设置` 显式保存并提示；`立即备份` / `从备份恢复` 先静默保存表单值再执行；自动备份开关变更即时保存；失败经 promise reject 回 UI alert。
+- **验证（2026-10-16）**：`npm run build` 全绿（coffeelint 全过，零 warning）；构建产物 grep：旧 sync 标识零残留、`OptionsBackup` / 三个备份方法已入 bundle；omega-target 测试 6 passing / 0 failing（`options_sync` 测试已删）；omega-pac 142 passing / 1 failing（既有 SOCKS5 失败，与改动无关）。
+- **待办**：实机确认（需重载扩展；`_locales` 重建后才生效）。
 
 ### R8. iOS 风格主题改造 + 设置页打磨 — 状态：**待开始**（2026-10-16）
 

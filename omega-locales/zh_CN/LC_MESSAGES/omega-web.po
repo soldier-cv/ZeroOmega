@@ -380,54 +380,57 @@ msgstr "从备份文件恢复"
 msgid "options_restoreLocalHelp"
 msgstr "导入本地的备份文件以恢复所有选项。"
 
-msgid "options_restoreOnline"
-msgstr "在线恢复"
+msgid "options_group_webdavBackup"
+msgstr "WebDAV 备份"
 
-msgid "options_restoreOnlinePlaceholder"
-msgstr "备份文件地址 (如：http://example.com/switchy.bak)"
+msgid "options_backupUri"
+msgstr "WebDAV 地址"
 
-msgid "options_restoreOnlineSubmit"
-msgstr "恢复"
+msgid "options_backupUriPlaceholder"
+msgstr "例如 https://dav.example.com/remote.php/dav/files/user/"
 
-msgid "options_group_syncing"
-msgstr "选项同步 (测试中)"
+msgid "options_backupUsername"
+msgstr "用户名"
 
-msgid "options_syncEnable"
-msgstr "启用同步"
+msgid "options_backupUsernamePlaceholder"
+msgstr "WebDAV 认证用户名"
 
-msgid "options_useBuiltInSyncEnhance"
-msgstr "使用浏览器内置同步功能增强远程同步使用体验"
+msgid "options_backupPassword"
+msgstr "密码"
 
-msgid "options_useBuiltInSyncEnhanceTip"
-msgstr "<li>用户登录浏览器账号后就自动下载扩展，并恢复所有已同步的设置</li>"
-"<li>配置项有变化时，会立即同步到其他浏览器下．（没有打开该功能时，应用只会每隔 5 分钟检查配置是否变化）</li>"
+msgid "options_backupPasswordPlaceholder"
+msgstr "WebDAV 认证密码"
 
-msgid "options_syncEnableForce"
-msgstr "下载云端版本"
+msgid "options_backupAuto"
+msgstr "自动备份"
 
-msgid "options_syncDisable"
-msgstr "禁用同步"
+msgid "options_backupAutoHelp"
+msgstr "选项或情景模式变更后自动备份。"
 
-msgid "options_syncReset"
-msgstr "删除云端版本"
+msgid "options_backupSave"
+msgstr "保存设置"
 
-msgid "options_syncPristineHelp"
-msgstr "您可以将设置和情景模式同步到所有使用Chrome浏览器的桌面设备。"
+msgid "options_backupNow"
+msgstr "立即备份"
 
-msgid "options_syncSyncAlert"
-msgstr "您的设置将会自动与其他设备进行同步。"
+msgid "options_backupRestore"
+msgstr "从备份恢复"
 
-msgid "options_syncSyncHelp"
-msgstr "请注意：您需要在所有设备上（包括此设备）的Chrome浏览器中登录，这样同步的选项才能正常使用。<br>可以在其他设备上查看此页面，来检查同步是否生效。"
+msgid "options_backupLast"
+msgstr "上次备份："
 
-msgid "options_syncConflictAlert"
-msgstr "您已经通过其他设备上传了一份选项用于同步。"
+msgid "options_backupLastNever"
+msgstr "从未备份"
 
-msgid "options_syncConflictHelp"
-msgstr "您可以将云端的选项下载到此设备使用。<br>一旦选择下载，<b>此设备上的设置和情景模式将会被覆盖</b>。"
+msgid "options_backupSaved"
+msgstr "备份设置已保存。"
 
-msgid "options_syncUnsupportedHelp"
-msgstr "选项同步暂不支持您的平台或浏览器。目前只支持桌面版Chrome的浏览器的同步，请谅解。"
+msgid "options_backupSuccess"
+msgstr "备份完成。"
+
+msgid "options_backupRestoreSuccess"
+msgstr "已从备份恢复选项。"
+
 
 msgid "options_builtin"
 msgstr "应用内置"

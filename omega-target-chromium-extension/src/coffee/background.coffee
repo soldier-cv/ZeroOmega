@@ -6,8 +6,6 @@ OmegaTargetCurrent.Log = Object.create(OmegaTargetCurrent.Log)
 Log = OmegaTargetCurrent.Log
 
 
-BUILTINSYNCKEY = 'zeroOmegaSync'
-
 globalThis.isBrowserRestart = false
 startupCheck = ->
   setTimeout(->
@@ -50,11 +48,6 @@ upgradeMigrateFn = (details) ->
           when '3.3.10'
             options.ready.then( ->
               # TODO check
-              true
-            )
-          when '3.3.11'
-            options.ready.then( ->
-              # TODO clear all disabled syncOptions
               true
             )
 chrome.runtime.onInstalled.addListener( (details) ->
@@ -233,22 +226,21 @@ zeroBackground = (zeroStorage, opts) ->
   storage = new OmegaTargetCurrent.Storage('local')
   state = new OmegaTargetCurrent.BrowserStorage(zeroStorage, 'omega.local.')
 
-  if chrome?.storage?.sync or browser?.storage?.sync
-    syncStorage = new OmegaTargetCurrent.SyncStorage('sync', state)
-    builtInSyncStorage = new OmegaTargetCurrent.Storage('sync')
-    sync = new OmegaTargetCurrent.OptionsSync(
-      syncStorage, builtInSyncStorage, state
-    )
-    sync.transformValue = OmegaTargetCurrent.Options.transformValueForSync
-
   proxyImpl = OmegaTargetCurrent.proxy.getProxyImpl(Log)
   state.set({proxyImplFeatures: proxyImpl.features})
-  options = new OmegaTargetCurrent.Options(storage, state, Log, sync,
-    proxyImpl)
+  options = new OmegaTargetCurrent.Options(storage, state, Log, proxyImpl)
 
   options._actionForUrl = actionForUrl
 
   options.initWithOptions(null, startupCheck)
+
+  # WebDAV options backup. Methods are attached to the options instance so
+  # that they can be invoked through the message dispatcher below.
+  optionsBackup = new OmegaTargetCurrent.OptionsBackup(options, state, Log)
+  optionsBackup.watch()
+  options.backupOptionsNow = -> optionsBackup.backupNow()
+  options.restoreOptionsFromBackup = -> optionsBackup.restore()
+  options.setOptionsBackupConfig = (config) -> optionsBackup.setConfig(config)
 
   options.externalApi = new OmegaTargetCurrent.ExternalApi(options)
   options.externalApi.listen()
@@ -256,55 +248,6 @@ zeroBackground = (zeroStorage, opts) ->
   if chrome.runtime.id != OmegaTargetCurrent.SwitchySharp.extId and false
     options.switchySharp = new OmegaTargetCurrent.SwitchySharp()
     options.switchySharp.monitor()
-  if sync and options and builtInSyncStorage
-    builtInSyncStorage.watch [
-      BUILTINSYNCKEY
-    ], (changes, opts = {}) ->
-      builtInSyncConfig = changes[BUILTINSYNCKEY]
-      if builtInSyncConfig
-        {
-          gistId, gistToken, lastGistCommit, syncUsername, syncBackendType
-        } = builtInSyncConfig
-        stateUpdate = {gistId, gistToken}
-        stateUpdate.syncUsername = syncUsername if syncUsername?
-        stateUpdate.syncBackendType = syncBackendType if syncBackendType?
-        state.set(stateUpdate)
-        if sync.enabled
-          console.log('check gist change', lastGistCommit)
-          sync.init({
-            gistId, gistToken, username: syncUsername, syncBackendType
-          })
-          state.get({
-            'lastGistCommit': ''
-          }).then((syncConfig) ->
-            if syncConfig.lastGistCommit isnt lastGistCommit
-              console.log(
-                'no match last gist commit, will check change',
-                syncConfig.lastGistCommit
-              )
-              sync.checkChange()
-          )
-        else
-          # try to enable sync
-          state.get({
-            'syncOptions': ''
-            'lastGistCommit': ''
-          }).then((syncConfig) ->
-            return if syncConfig.lastGistCommit is lastGistCommit
-            if syncConfig.syncOptions in ['pristine', 'conflict']
-              state.set({
-                syncOptions: 'conflict'
-              }).then( ->
-                options.setOptionsSync(true, {
-                  gistId,
-                  gistToken,
-                  username: syncUsername,
-                  syncBackendType,
-                  useBuiltInSync: true,
-                  force: true
-                })
-              )
-          )
   tabs = new OmegaTargetCurrent.ChromeTabs(actionForUrl)
   tabs.watch()
 
@@ -450,7 +393,6 @@ zeroBackground = (zeroStorage, opts) ->
   resetAllOptions = ->
     options.ready.then ->
       options._watchStop?()
-      options._syncWatchStop?()
       Promise.all([
         chrome.storage.sync.clear(),
         chrome.storage.local.clear()

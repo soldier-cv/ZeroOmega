@@ -24,118 +24,58 @@ section.settings-group
       = ' '
       | {{'options_restoreLocal' | tr}}
     span.help-inline {{'options_restoreLocalHelp' | tr}}
-  div
-    label {{'options_restoreOnline' | tr}}
-    .input-group.width-limit
-      input.form-control(type='url' ng-model='restoreOnlineUrl' placeholder="{{'options_restoreOnlinePlaceholder' | tr}}")
-      span.input-group-btn
-        button.btn.btn-default(ng-click='restoreOnline()' ladda='restoringOnline' data-spinner-color="#000000")
-          | {{'options_restoreOnlineSubmit' | tr}}
 section.settings-group
-  h3 {{'options_group_syncing' | tr}}
-  div
-    form.sync-form
-      div.form-group
-        label {{'options_syncBackend' | tr}}
-        .width-limit
-          select.form-control(
-            ng-model='syncBackendType'
-            ng-options='bt.id as (bt.label | tr) for bt in backendTypes'
-            ng-change='onBackendTypeManualChange()'
-            ng-disabled='syncOptions == "sync"')
-      div.form-group
-        label {{'options_syncUri' | tr}}
-        .input-group.width-limit
-          span.input-group-addon {{'URI'}}
-          input.form-control(type='text' ng-model='gistId' ng-readonly='syncOptions == "sync"' placeholder="{{syncBackendType == 'webdav' ? ('options_syncUriPlaceholderWebdav' | tr) : ('options_syncUriPlaceholderGist' | tr)}}")
-          span.glyphicon.glyphicon-remove.btn.clean-btn(ng-click='cleanInput("gistId")' ng-if='syncOptions != "sync"')
-        span.help-block(ng-if='syncBackendType == "gist"')
-          a(href="https://gist.github.com/" role="button" target="_blank")
-            | {{'Create a secret Gist. '}}
-          strong
-            | {{" Note: If it's a public Gist, your options can be searched by others。"}}
-        span.help-block(ng-if='syncBackendType == "webdav"')
-          | {{'options_syncWebdavHelp' | tr}}
-      div.form-group(ng-if='syncBackendType == "webdav"')
-        label {{'options_syncWebdavUsername' | tr}}
-        .input-group.width-limit
-          span.input-group-addon {{'USER'}}
-          input.form-control(type='text' ng-model='$parent.syncUsername' ng-readonly='syncOptions == "sync"' placeholder="{{'options_syncWebdavUsernamePlaceholder' | tr}}")
-          span.glyphicon.glyphicon-remove.btn.clean-btn(ng-click='cleanInput("syncUsername")' ng-if='syncOptions != "sync"')
-      div.form-group
-        label(ng-if='syncBackendType == "gist"') {{'Gist Token'}}
-        label(ng-if='syncBackendType == "webdav"') {{'options_syncWebdavPassword' | tr}}
-        .input-group.width-limit
-          span.input-group-addon(ng-if='syncBackendType == "gist"') {{'TOKEN'}}
-          span.input-group-addon(ng-if='syncBackendType == "webdav"') {{'PASS'}}
-          input.form-control(type='password' ng-model='gistToken' ng-readonly='syncOptions == "sync"' placeholder="{{syncBackendType == 'webdav' ? ('options_syncWebdavPasswordPlaceholder' | tr) : 'Gist Token'}}")
-          span.glyphicon.glyphicon-remove.btn.clean-btn(ng-click='cleanInput("gistToken")' ng-if='syncOptions != "sync"')
-        span.help-block(ng-if='syncBackendType == "gist"')
-          a(href="https://github.com/settings/tokens/new" role="button" target="_blank")
-            | {{ 'Create a token that manages the Gist.' }}
-            strong
-              | {{ '(Gist permission is required.)'}}
-        span.help-block(ng-if='syncBackendType == "webdav"')
-          | {{'Password for WebDAV authentication.'}}
-  div(ng-show='syncOptions == "pristine" || syncOptions == "disabled"')
+  h3 {{'options_group_webdavBackup' | tr}}
+  form.backup-form
+    div.form-group
+      label {{'options_backupUri' | tr}}
+      .input-group.width-limit
+        span.input-group-addon {{'URI'}}
+        input.form-control(type='url' ng-model='backupConfig.uri'
+          placeholder="{{'options_backupUriPlaceholder' | tr}}")
+    div.form-group
+      label {{'options_backupUsername' | tr}}
+      .input-group.width-limit
+        span.input-group-addon {{'USER'}}
+        input.form-control(type='text' ng-model='backupConfig.username'
+          placeholder="{{'options_backupUsernamePlaceholder' | tr}}")
+    div.form-group
+      label {{'options_backupPassword' | tr}}
+      .input-group.width-limit
+        span.input-group-addon {{'PASS'}}
+        input.form-control(type='password' ng-model='backupConfig.password'
+          placeholder="{{'options_backupPasswordPlaceholder' | tr}}")
     div.checkbox
       label
-        input#use-built-in-sync-enhance(type='checkbox' ng-model='useBuiltInSync')
-        span {{'options_useBuiltInSyncEnhance' | tr}}
-      details.use-built-in-sync-enhance-tip
-        summary
-          span.glyphicon.glyphicon-question-sign
-        ol(omega-html='"options_useBuiltInSyncEnhanceTip" | tr')
-
-    p.help-block(omega-html='"options_syncPristineHelp" | tr')
-    p
-      button.btn.btn-default(ng-click='enableOptionsSync()' ladda='enableOptionsSyncing' data-spinner-color="currentColor")
-        span.glyphicon.glyphicon-cloud-upload
-        = ' '
-        | {{'options_syncEnable' | tr}}
-  div(ng-show='syncOptions == "sync"')
-    p.alert.width-limit(ng-class="alertType")
-      button.btn.btn-sm.btn-success(ng-click='checkOptionsSyncChange()' ladda='enableOptionsSyncing')
-        span.glyphicon.glyphicon-refresh
-      span {{'   last sync date: '}}
-      | {{ lastGistSync | date:'medium'}}
+        input#options-backup-auto(type='checkbox' ng-model='backupConfig.autoBackup'
+          ng-change='backupAutoChanged()')
+        span {{'options_backupAuto' | tr}}
+      span.help-inline {{'options_backupAutoHelp' | tr}}
+  p
+    button.btn.btn-default(ng-click='saveBackupConfig()'
+      ladda='savingBackupConfig' data-spinner-color="#000000")
+      span.glyphicon.glyphicon-floppy-disk
+      = ' '
+      | {{'options_backupSave' | tr}}
+    = ' '
+    button.btn.btn-default(ng-click='backupNow()'
+      ladda='backingUp' data-spinner-color="#000000")
+      span.glyphicon.glyphicon-cloud-upload
+      = ' '
+      | {{'options_backupNow' | tr}}
+    = ' '
+    button.btn.btn-default(ng-click='restoreFromBackup()'
+      ladda='restoringBackup' data-spinner-color="#000000")
+      span.glyphicon.glyphicon-cloud-download
+      = ' '
+      | {{'options_backupRestore' | tr}}
+  p.help-block
+    span.glyphicon.glyphicon-time
+    = ' '
+    | {{'options_backupLast' | tr}}
+    | {{ lastBackup ? (lastBackup | date:'medium') : ('options_backupLastNever' | tr) }}
+    span(ng-if='lastBackupState')
+      = ' '
       | {{'('}}
-      | {{lastGistState}}
+      | {{lastBackupState}}
       | {{')'}}
-      a(ng-if='syncBackendType == "gist"' href="{{gistUrl}}" role="button" target="_blank")
-        | {{' '}}
-        span.glyphicon.glyphicon-link
-      span(ng-if='syncBackendType == "webdav"')
-        | {{' WebDAV'}}
-      br
-      br
-      span.glyphicon.glyphicon-ok
-      = ' '
-      | {{"options_syncSyncAlert" | tr}}
-    p
-      button.btn.btn-warning(ng-click='disableOptionsSync()')
-        span.glyphicon.glyphicon-remove-sign
-        = ' '
-        | {{'options_syncDisable' | tr}}
-  div(ng-show='syncOptions == "conflict"')
-    div.checkbox
-      label
-        input#use-built-in-sync-enhance(type='checkbox' ng-model='useBuiltInSync')
-        span {{'options_useBuiltInSyncEnhance' | tr}}
-    p.alert.alert-danger.width-limit
-      span.glyphicon.glyphicon-info-sign
-      = ' '
-      | {{"options_syncConflictAlert" | tr}}
-    p.help-block(omega-html='"options_syncConflictHelp" | tr')
-    p
-      button.btn.btn-danger(ng-click='enableOptionsSync({force: true})' ladda='enableOptionsSyncing' )
-        span.glyphicon.glyphicon-cloud-download
-        = ' '
-        | {{'options_syncEnableForce' | tr}}
-      = ' '
-      button.btn.btn-link(ng-click='resetOptionsSync()')
-        span.glyphicon.glyphicon-erase
-        = ' '
-        | {{'options_syncReset' | tr}}
-  div(ng-show='syncOptions == "unsupported"')
-    p.help-block(omega-html='"options_syncUnsupportedHelp" | tr')

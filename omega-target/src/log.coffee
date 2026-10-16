@@ -4,8 +4,7 @@ Log = require './log'
 replacer = (key, value) ->
   switch key
     # Hide values for a few keys with privacy concerns.
-    when "username", "password", "host", "port", "token", "gistToken", \
-         "gistId", "syncUsername"
+    when "username", "password", "host", "port", "token"
       return "<secret>"
     else
       value

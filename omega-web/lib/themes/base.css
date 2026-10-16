@@ -441,7 +441,8 @@ main .page-header {
 **/
 
 ::selection {
-  background-color: var(--selectionBackground);
+  background-color: var(--primaryColor);
+  color: var(--whiteColor);
 }
 
 input::placeholder,
@@ -481,12 +482,6 @@ progress {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.form-control:focus {
-  border-color: var(--infoColor);
-  box-shadow: 0 0 0 3px var(--selectionBackground);
-  -webkit-box-shadow: 0 0 0 3px var(--selectionBackground);
-}
-
 .btn {
   -webkit-transition: background-color 0.15s ease, border-color 0.15s ease;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -502,7 +497,7 @@ progress {
 .open > .dropdown-toggle.btn-default.focus,
 .open > .dropdown-toggle.btn-default:focus,
 .open > .dropdown-toggle.btn-default:hover {
-  outline: 2px solid var(--highlightBackground);
+  outline: 2px solid var(--primaryColor);
   outline-offset: 2px;
 }
 

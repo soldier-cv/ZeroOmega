@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Z&#8203eroOmega Popup</title>
+  <title>Z&#8203;eroOmega Popup</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="css/index.css">
 </head>
@@ -21,25 +21,22 @@
       </a>
     </li>
     <li class="om-section om-hidden" id="js-page-section">
-      <div class="om-section-title" id="js-page-title"></div>
       <div class="om-card om-page-card">
-        <div class="om-page-host">
+        <div class="om-page-head">
           <span class="glyphicon glyphicon-globe"></span>
           <span class="om-page-host-text" id="js-page-host"></span>
+          <span class="om-mode" id="js-mode" role="group">
+            <button type="button" class="om-mode-btn" id="js-mode-global"
+              aria-pressed="true"></button>
+            <button type="button" class="om-mode-btn" id="js-mode-page"
+              aria-pressed="false"></button>
+          </span>
         </div>
-        <div class="om-nav-item om-temprule om-has-dropdown">
-          <a href="#" id="js-temprule" role="button">
-            <span class="glyphicon glyphicon-filter"></span>
-            <span class="om-temprule-label" id="js-temprule-label"></span>
-            <span class="om-temprule-state" id="js-temprule-state"></span>
-            <span class="om-caret"></span>
-          </a>
-        </div>
+        <div class="om-scope om-hidden" id="js-scope"></div>
       </div>
     </li>
     <li class="om-section">
-      <div class="om-section-title" id="js-profiles-title"></div>
-      <div class="om-card">
+      <div class="om-card" id="js-profiles-card">
         <div class="om-nav-item">
           <a href="#" id="js-direct" role="button">
             <span class="glyphicon glyphicon-transfer"></span>

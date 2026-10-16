@@ -18,10 +18,10 @@ html, body {
 }
 
 body {
-  min-width: 300px;
+  min-width: 280px;
   padding: 8px;
-  color: #2f353d;
-  background-color: #fff;
+  color: #1c1c1e;
+  background-color: #f2f2f7;
 }
 
 .om-hidden {
@@ -38,42 +38,82 @@ body {
 
   .om-section {
     display: block;
-    margin-bottom: 10px;
-  }
-
-  .om-section-title {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .05em;
-    color: #8a919b;
-    margin: 0 4px 5px;
+    margin-bottom: 8px;
   }
 
   .om-card {
     background-color: #fff;
-    border: 1px solid #e4e8ee;
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 4px;
   }
 
-  .om-page-host {
+  .om-page-head {
     display: flex;
     align-items: center;
-    padding: 6px 8px 2px;
+    gap: 8px;
+    padding: 6px 6px 6px 8px;
     font-weight: 600;
-    color: #23282f;
+    color: #1c1c1e;
   }
 
-    .om-page-host > .glyphicon {
-      margin-right: 8px;
-      color: #9aa3ae;
+    .om-page-head > .glyphicon {
+      color: #8e8e93;
     }
 
     .om-page-host-text {
+      flex: 1 1 auto;
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+  /* Mode: one control, two states. The list below follows it. */
+
+  .om-mode {
+    display: flex;
+    flex: 0 0 auto;
+    padding: 2px;
+    border-radius: 8px;
+    background-color: #e5e5ea;
+  }
+
+    .om-mode-btn {
+      padding: 4px 10px;
+      border: 0;
+      border-radius: 6px;
+      background-color: transparent;
+      color: #3c3c43;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+
+    .om-mode-btn.om-mode-selected {
+      background-color: #fff;
+      color: #007aff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+    }
+
+    .om-mode-btn.om-disabled,
+    .om-mode-btn:disabled {
+      color: #c7c7cc;
+      cursor: default;
+    }
+
+    .om-mode-btn:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, .35);
+    }
+
+  .om-scope {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 6px 8px;
+  }
 
   .om-nav-item {
     display: block;
@@ -83,26 +123,24 @@ body {
     .om-nav-item > a {
       display: flex;
       align-items: center;
-      padding: 6px 8px;
-      border-radius: 7px;
+      padding: 7px 8px;
+      border-radius: 8px;
       line-height: 1.5;
       font-size: 1em;
-      color: #2f353d;
+      color: #1c1c1e;
       text-decoration: none;
       white-space: nowrap;
       cursor: pointer;
-      transition: background-color .12s ease, color .12s ease;
     }
 
     .om-nav-item > a:hover {
       text-decoration: none;
-      background-color: #f1f4f8;
-      color: #17324f;
+      background-color: #f2f2f7;
     }
 
     .om-nav-item > a:focus {
       outline: none;
-      box-shadow: inset 0 0 0 2px rgba(51, 122, 183, .45);
+      box-shadow: inset 0 0 0 2px rgba(0, 122, 255, .4);
     }
 
     .om-nav-item > a > .glyphicon {
@@ -110,128 +148,121 @@ body {
     }
 
     .om-nav-item.om-effective > a {
-      background-color: #e8f2fb;
+      background-color: rgba(0, 122, 255, .1);
+      color: #007aff;
     }
 
     .om-nav-item.om-active > a {
       color: #fff;
-      background-color: #337ab7;
+      background-color: #007aff;
     }
 
     .om-nav-item.om-active > a:hover {
-      background-color: #2d6ba2;
+      background-color: #0071eb;
     }
 
     .om-nav-item.om-active > a:focus {
       box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55);
     }
 
+    .om-nav-item > a.om-disabled {
+      cursor: default;
+      color: #c7c7cc;
+    }
+
+    .om-nav-item > a.om-disabled:hover {
+      background-color: transparent;
+      color: #c7c7cc;
+    }
+
+    .om-nav-item > a.om-disabled > .glyphicon {
+      color: #c7c7cc !important;
+    }
+
   .om-divider {
     height: 1px;
     overflow: hidden;
-    background-color: #edf0f4;
-    margin: 4px 6px;
+    background-color: #e5e5ea;
+    margin: 4px 8px;
   }
 
-/* Page routing */
+/* Scope switcher, shown only in page mode */
 
-  .om-page-card .om-temprule {
-    margin-top: 2px;
-  }
-
-    .om-nav-item.om-temprule > a {
-      color: #2f353d;
-    }
-
-    .om-temprule-label {
-      flex: 1 1 auto;
-    }
-
-    .om-temprule-state {
-      display: inline-flex;
-      align-items: center;
-      margin-left: 8px;
-      color: #8a919b;
-    }
-
-    .om-nav-item.om-temprule > a.om-disabled {
-      cursor: default;
-      color: #8a919b;
-    }
-
-    .om-nav-item.om-temprule > a.om-disabled:hover {
-      background-color: transparent;
-      color: #8a919b;
-    }
-
-/* Profile chip */
-
-.om-chip {
-  display: inline-flex;
-  align-items: center;
-  margin-left: auto;
-  padding: 1px 8px;
-  max-width: 12em;
-  border: 1px solid #dfe6ee;
-  border-radius: 999px;
-  background-color: #eff3f8;
-  color: #33465c;
-  font-size: 12px;
-  line-height: 1.6;
+.om-segmented {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 2px;
+  padding: 2px;
+  background-color: #e5e5ea;
+  border-radius: 8px;
 }
 
-  .om-chip > .glyphicon {
-    margin-right: 5px;
+  .om-segmented-btn {
+    flex: 1;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 6px;
+    background-color: transparent;
+    color: #3c3c43;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
   }
 
-  .om-chip-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .om-segmented-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, .35);
   }
 
-.om-nav-item.om-active > a > .om-chip,
-.om-nav-item.om-active > a > .om-chip-current {
-  background-color: rgba(255, 255, 255, .22);
-  border-color: rgba(255, 255, 255, .4);
-  color: #fff;
+  .om-segmented-btn.om-scope-selected {
+    background-color: #fff;
+    color: #007aff;
+    font-weight: 600;
+  }
+
+.om-item-mark {
+  margin-left: auto;
+}
+
+.om-item-note {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
+  color: #c7c7cc;
 }
 
 /* Resource loading warning */
 
 .om-reqinfo {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 
   .om-reqinfo > a {
     padding: 7px 10px;
-    border: 1px solid #f0dfae;
-    border-radius: 10px;
+    border-radius: 12px;
     background-color: #fff8e6;
     color: #8a6d3b;
   }
 
   .om-reqinfo > a:hover {
     background-color: #fdf2d5;
-    color: #7b6033;
   }
 
   .glyphicon-warning-sign {
-    color: #b98520;
+    color: #ff9500;
   }
 
-/* Dropdown */
+/* Dropdown (default profile of a switch profile) */
 
 .om-dropdown {
   display: none;
   list-style: none;
-  padding: 6px;
-  margin: 6px 0 2px;
-  background-color: #fff;
-  border: 1px solid #dfe5ec;
-  border-radius: 9px;
-  box-shadow: 0 6px 16px rgba(20, 35, 60, .10);
-  max-height: 22em;
+  padding: 4px;
+  margin: 2px 0 0;
+  background-color: #f2f2f7;
+  border-radius: 8px;
+  max-height: 16em;
   overflow-y: auto;
 }
 
@@ -245,96 +276,6 @@ body {
 
 .om-dropdown .om-nav-item > a {
   padding: 5px 8px;
-  line-height: 1.4;
-}
-
-.om-dropdown-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .04em;
-  color: #8a919b;
-  padding: 2px 6px 4px;
-}
-
-.om-dropdown .om-divider {
-  margin: 6px 4px;
-}
-
-/* Scope switcher */
-
-.om-segmented {
-  display: flex;
-  gap: 4px;
-  padding: 3px;
-  background-color: #f1f3f7;
-  border-radius: 8px;
-}
-
-  .om-segmented-btn {
-    flex: 1;
-    padding: 5px 6px;
-    border: 0;
-    border-radius: 6px;
-    background-color: transparent;
-    color: #5b6470;
-    font-family: inherit;
-    font-size: 12px;
-    line-height: 1.4;
-    cursor: pointer;
-    transition: background-color .12s ease, color .12s ease;
-  }
-
-  .om-segmented-btn:hover {
-    color: #22303f;
-  }
-
-  .om-segmented-btn:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(51, 122, 183, .35);
-  }
-
-  .om-segmented-btn.om-scope-selected {
-    background-color: #fff;
-    color: #1d5fa8;
-    font-weight: 600;
-    box-shadow: 0 1px 3px rgba(20, 35, 60, .16);
-  }
-
-.om-scope-hint {
-  padding: 5px 6px 0;
-  font-size: 11px;
-  color: #8a919b;
-  word-break: break-all;
-}
-
-/* Temp rule removal */
-
-.om-temprule-remove > a {
-  color: #c0392b;
-}
-
-  .om-temprule-remove > a:hover {
-    background-color: #fdf0ee;
-    color: #a93226;
-  }
-
-/* Item accessories */
-
-.om-item-mark {
-  margin-left: auto;
-  opacity: .9;
-}
-
-.om-caret {
-  display: inline-block;
-  width: 0;
-  height: 0;
-  margin-left: 6px;
-  vertical-align: middle;
-  border-top: 4px solid currentColor;
-  border-right: 4px solid transparent;
-  border-left: 4px solid transparent;
-  opacity: .55;
 }
 
 .om-virtual-profile-icon {
@@ -360,13 +301,13 @@ body {
     width: 20px;
     height: 20px;
     border-radius: 5px;
-    color: #7c8794;
+    color: #8e8e93;
     cursor: pointer;
   }
 
   .om-edit-toggle:hover {
-    background-color: rgba(0, 0, 0, .07);
-    color: #2f353d;
+    background-color: rgba(0, 0, 0, .06);
+    color: #1c1c1e;
   }
 
   .om-nav-item.om-active > a .om-edit-toggle {
@@ -382,16 +323,16 @@ body {
 
 .om-keyboard-help {
   font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  border: solid 1px #000;
-  border-radius: 2px;
+  border: solid 1px #8e8e93;
+  border-radius: 3px;
   display: inline-block;
-  color: #000;
-  box-shadow: 1px 1px;
+  color: #8e8e93;
   width: 1em;
   height: 1em;
   line-height: 1em;
   text-align: center;
-  margin: -3px 6px 0 0;
+  margin: -2px 6px 0 0;
+  font-size: 11px;
 }
 
 /* Glyphicons */
@@ -441,9 +382,6 @@ body {
 .glyphicon-plus:before {
     content: "\2b"
 }
-.glyphicon-filter:before {
-    content: "\e138"
-}
 .glyphicon-wrench:before {
   content: "\e136"
 }
@@ -452,7 +390,4 @@ body {
 }
 .glyphicon-ok:before {
     content: "\e013";
-}
-.glyphicon-trash:before {
-    content: "\e020";
 }

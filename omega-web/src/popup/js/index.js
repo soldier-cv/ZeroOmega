@@ -1,11 +1,13 @@
 (function() {
   handleClick('js-option', showOptions);
-  handleClick('js-temprule', showTempRuleDropdown);
-  handleClick('js-direct', applyProfile.bind(this, 'direct'));
-  handleClick('js-system', applyProfile.bind(this, 'system'));
+  handleClick('js-direct', chooseProfile.bind(this, 'direct'));
+  handleClick('js-system', chooseProfile.bind(this, 'system'));
   OmegaPopup.addTempRule = addTempRule;
+  OmegaPopup.clearTempRule = clearTempRule;
   OmegaPopup.setDefaultProfile = setDefaultProfile;
   OmegaPopup.applyProfile = applyProfile;
+  OmegaPopup.applyGlobalProfile = applyGlobalProfile;
+  OmegaPopup.chooseProfile = chooseProfile;
   return;
 
   function handleClick(id, handler) {
@@ -35,6 +37,40 @@
     });
   }
 
+  // A click on a profile row does whatever the mode button says: in global
+  // mode it becomes the global profile and the page goes back to following
+  // it; in page mode it is written as a temp rule for the chosen scope.
+  function chooseProfile(profileName) {
+    $script.ready('om-target', function() {
+      if (OmegaPopup.mode === 'page') {
+        if (profileName === 'system') return;
+        if (OmegaPopup.applyPageProfile) OmegaPopup.applyPageProfile(profileName);
+      } else {
+        applyGlobalProfile(profileName);
+      }
+    });
+  }
+
+  // Applying a global profile also resolves the page-level override: the
+  // global choice wins, so any temp rule for this page (and its domain) is
+  // cleared and the page goes back to following the global profile.
+  function applyGlobalProfile(profileName) {
+    $script.ready('om-target', function() {
+      if (OmegaPopup.clearPageTempRules) {
+        OmegaPopup.clearPageTempRules();
+      }
+      OmegaTargetPopup.applyProfile(profileName, closePopup);
+    });
+  }
+
+  // Remove a temp rule without closing the popup, so the page card can update
+  // its state in place.
+  function clearTempRule(domain, profileName) {
+    $script.ready('om-target', function() {
+      OmegaTargetPopup.addTempRule(domain, profileName, -1);
+    });
+  }
+
   function setDefaultProfile(profileName, defaultProfileName) {
     $script.ready('om-target', function() {
       OmegaTargetPopup.setDefaultProfile(profileName, defaultProfileName,
@@ -45,12 +81,6 @@
   function addTempRule(domain, profileName, toggle) {
     $script.ready('om-target', function() {
       OmegaTargetPopup.addTempRule(domain, profileName, toggle, closePopup);
-    });
-  }
-
-  function showTempRuleDropdown() {
-    $script.ready('om-dropdowns', function() {
-      OmegaPopup.showTempRuleDropdown();
     });
   }
 })();

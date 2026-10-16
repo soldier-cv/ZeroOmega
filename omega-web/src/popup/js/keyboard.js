@@ -18,7 +18,7 @@
     69: 'js-external', // e
     65: 'js-addrule', // a
     187: 'js-addrule', // +, =
-    84: 'js-temprule', // t
+    84: togglePageMode, // t
     79: 'js-option', // o
     82: 'js-reqinfo', // r
   };
@@ -129,6 +129,16 @@
   function clickById(id) {
     var element = document.getElementById(id);
     if (element) element.click();
+  }
+
+  function togglePageMode() {
+    var pageBtn = document.getElementById('js-mode-page');
+    var globalBtn = document.getElementById('js-mode-global');
+    if (pageBtn && pageBtn.getAttribute('aria-pressed') === 'true') {
+      if (globalBtn) globalBtn.click();
+    } else if (pageBtn && !pageBtn.disabled) {
+      pageBtn.click();
+    }
   }
 
 })();

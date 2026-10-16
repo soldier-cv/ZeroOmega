@@ -234,6 +234,35 @@ zeroBackground = (zeroStorage, opts) ->
 
   options.initWithOptions(null, startupCheck)
 
+  # The built-in themes shipped a first pass whose interactive states came out
+  # gray (text selection, input focus ring, button hover outline) — that is the
+  # "iOS colors look off" report. The selectable theme is a snapshot stored in
+  # the options, so refresh it once when the old gray focus ring is present.
+  # Rebuild with the same palette the snapshot used; anything hand-edited, and
+  # every other theme, is left alone.
+  do ->
+    OLD_FOCUS_RING = '0003pxvar(--selectionBackground)'
+    options.ready.then(->
+      css = options._options?['-customCss']
+      return unless css
+      compact = css.replace(/\s/g, '')
+      return if compact.indexOf(OLD_FOCUS_RING) < 0
+      theme = if compact.indexOf('prefers-color-scheme') >= 0
+        'default-auto.css'
+      else if compact.indexOf('--base00:#1c1c1e') >= 0
+        'default-dark.css'
+      else
+        'default-light.css'
+      themeUrl = chrome.runtime.getURL('lib/themes/')
+      Promise.all(['variable.css', theme, 'base.css'].map((name) ->
+        fetch(themeUrl + name).then((res) -> res.text())
+      )).then((parts) ->
+        delta = {}
+        delta['-customCss'] = [css, parts.join('\n')]
+        options.patch(delta)
+      )
+    ).catch((err) -> Log.error(err))
+
   # WebDAV options backup. Methods are attached to the options instance so
   # that they can be invoked through the message dispatcher below.
   optionsBackup = new OmegaTargetCurrent.OptionsBackup(options, state, Log)

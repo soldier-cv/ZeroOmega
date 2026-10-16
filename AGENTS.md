@@ -77,6 +77,45 @@
 - **实机确认（2026-10-16）**：重载扩展后确认界面分区、临时规则表达、作用域选择与应用 / 撤销链路符合预期。
 - **注意（后续改动约束）**：popup 的 `js-*` id 与 `.om-nav` 根节点是键盘导航（`keyboard.js` TreeWalker 按 tab 序行走）与 `keyboard_help.js` 帮助徽标的依赖；菜单行结构请保持“`.om-nav-item > a`（flex：图标 + 名称 + 附属元素）”。
 
+### R5. popup「本页覆盖」互斥开关 + 两列表一致性 — 状态：**已被 R9 取代**（2026-10-16）
+
+- **背景**：R4 实机后华总反馈两点：① 临时规则与全局当前并列展示形成“双重状态”（本页临时 `[直接连接]` + 全局当前 `VPN`），期望两者**互斥**——“如果我手动点击了某个全局，这个临时应该要变成全局或 无”；② 临时下拉的「应用情景模式」列表与「全局情景模式」列表**内容与顺序不一致**（缺 `[系统代理]`、隐藏当前全局、排序不同），问“是否可以做成开关之类的”。
+- **已确认决策（D7）**：本页路由改为**互斥开关模型**——页卡片新增「本页覆盖全局」开关（iOS 风格）。OFF = 跟随全局（行显示“跟随全局 · [全局 profile]”，灰显）；ON = 本页使用独立情景模式（临时规则）。**点击任意全局情景模式行 = 应用该全局 profile + 清除本页临时规则**（host 规则与主域规则），即“本页回到跟随全局”。
+- **实现（2026-10-16）**：
+  - `omega-web/src/popup/index.html`：页卡片新增开关行 `#js-override-switch`（`role="switch"` + `aria-checked`）；
+  - `omega-web/src/popup/js/profiles.js`：`updateTempRuleRow` 重写（开关状态 = 是否存在生效临时规则；OFF 行显示“跟随全局” + 灰色 chip，`globalProfileForPage` 取当前全局）；新增 `pageTempRules` / `clearPageTempRules`（清 host + 主域规则 → 就地刷新 UI + 重建下拉）/ `resetTempRuleDropdown` / `bindOverrideSwitch`；下拉列表重做 `buildEntries`——顺序与全局列表**完全一致**（直接连接 → 系统代理（**禁用行**，右侧「仅全局」标注 + 说明 tooltip）→ 自定义 profile 同 `compareProfile` 排序；不再隐藏当前全局）；
+  - `omega-web/src/popup/js/index.js`：新增 `applyGlobalProfile`（先清本页临时规则再应用全局；direct / system / 自定义行统一走它）与 `clearTempRule`（不关 popup 的删除调用）；
+  - `omega-web/src/popup/css/index.css`：`.om-switch`（40×24 iOS 风格开关，绿 #34c759）、`.om-override-row`、`.om-chip-muted`、`.om-temprule-follow`、`.om-item-note`、通用 `a.om-disabled`；
+  - i18n（`en_US` + `zh_CN` 同步）：新增 `popup_pageOverride` / `popup_pageProfileLabel` / `popup_pageFollowGlobal` / `popup_pageOverrideHelp` / `popup_tempRuleSystemGlobalOnly` / `popup_tempRuleSystemGlobalOnlyHelp`；`popup_tempRuleLabel`（“临时规则”）不再使用（条目保留）。
+- **语义说明**：开关关闭 = 本页不再被覆盖，因此同时清除 host 与主域两条临时规则；仅当对应规则确实存在时才发删除调用（`addTempRule(key, 现有 profileName, -1)`，避免 `byName(null)` 被拒）。
+- **验证方式（本地预览 harness）**：开关 ON/OFF 就地切换（调用日志确认 `addTempRule(postest.findfine.com, direct, -1)`）；点全局行 → `addTempRule(..., -1)` + `applyProfile(FIDDLER)`；下拉列表与全局列表顺序一致；系统代理禁用行（「仅全局」）；主域规则场景（`整个主域` 作用域下 ✓ + 撤销行）；单层域名（无作用域分段控件）；系统代理为 base（开关隐藏 + “不可用”）；`npm run build` 通过、产物与源逐字节一致。
+- **被 R9 取代（2026-10-16）**：实机后华总认为「本页覆盖全局」文案绕、两套列表重复。交互改为顶部「全局 / 当前」分段按钮 + 一套列表，见 R9。本条保留作决策记录，不再按此实现。
+
+### R9. popup 简化为「全局 / 当前」一个按钮 + 一套列表 — 状态：**本地预览已核验，待实机确认**（2026-10-16）
+
+- **背景**：R5 实机截图（`1panel.codec.top`）里同时出现「本页覆盖全局」开关、「情景模式」行、「作用域」分段、「应用情景模式」列表和「全局情景模式」列表。华总要求收成一个按钮：模式 = 全局 / 当前，点一下切换；切到全局隐藏作用域，切到当前隐藏“全局”这一套重复列表。
+- **已确认决策（D11）**：
+  - 顶部一行：站点名 + 「全局 / 当前」分段按钮。下面始终只有一套情景模式列表。
+  - 分段按钮的语义 = 「本页跟随谁」的开关，不是单纯的列表过滤器：切到**全局** = 本页跟随全局（**同时清除本页临时规则 host + 主域**）；切到**当前**不改动已有规则，只改变下一次点选的含义。
+  - **全局**：点选即应用该全局 profile；高亮 = 当前全局。
+  - **当前**：点选把该 profile 写成所选作用域的临时规则（再点同一项即撤销，沿用 `addTempRule` 的 toggle 语义）；高亮 = 该作用域已有的临时规则（浅蓝底 + 勾，不再铺蓝底，以免和全局当前混淆）。
+  - 作用域（本子域 / 整个主域）**只在「当前」且站点是子域时**出现，默认本子域；单层域名没有这一行。
+  - 系统代理在「当前」下禁用并标注「仅全局」（PAC 不能包含系统代理，与 R2 一致）。
+  - 打开 popup 时，本页已有临时规则则落在「当前」，否则落在「全局」。
+  - 全局 profile 不支持临时规则（如系统代理为 base）时，「当前」按钮禁用。
+- **实现（2026-10-16）**：
+  - `omega-web/src/popup/index.html`：删掉开关行、情景模式行和第二套分区标题；页卡片只留站点名 + `#js-mode-global` / `#js-mode-page` + `#js-scope`。
+  - `omega-web/src/popup/js/profiles.js`：`setMode` / `applyMode` / `refreshActive` 按模式重画同一套列表的高亮与禁用态；`applyPageProfile` 写临时规则；`renderScope` 只在子域场景渲染作用域分段。
+  - `omega-web/src/popup/js/index.js`：`chooseProfile` 按 `OmegaPopup.mode` 分发到 `applyGlobalProfile` 或 `applyPageProfile`；系统代理在「当前」下直接忽略。
+  - 键盘：`T` 在「全局 / 当前」之间切换（`keyboard.js` / `keyboard_help.js`）。
+  - i18n（`en_US` + `zh_CN`）：新增 `popup_modeGlobal`（全局 / Global）、`popup_modePage`（当前 / This page）、`popup_modeHelp`；删 `popup_pageOverride` / `popup_pageProfileLabel` / `popup_pageFollowGlobal` / `popup_pageOverrideHelp`。
+- **插件名**：`overlay/manifest.json` 与 `manifest-firefox.json` 的 `name` 由硬编码 `Proxy SwitchyOmega 3 (ZeroOmega)` 改为 `__MSG_manifest_app_name__`（en / zh 均为 ZeroOmega）。
+- **验证方式（2026-10-17）**：
+  - 构建 / 测试：`npm run build` 全绿（coffeelint 全过）；omega-target 6 passing / 0 failing；omega-pac 142 passing / 1 failing（既有 SOCKS5，与本次无关）。构建产物与源文件逐字节一致；`build/manifest.json` / `manifest-firefox.json` 的 `name` = `__MSG_manifest_app_name__`，`build/_locales` 含 `popup_modeGlobal` / `popup_modePage` / `manifest_app_name`。
+  - 界面：本地静态预览（临时目录，不入库；直接以构建产物供服务）逐场景截图 6 张——全局无规则 / 当前 + 子域作用域 / 仅主域规则（作用域自动对齐「整个主域」）/ 单层域名无作用域 / 系统代理「当前」禁用 +「仅全局」/ 资源未加载警告。
+  - 交互（预览页用桩驱动点击、读回调用序列）：当前模式点 profile → `addTempRule(host, name)`（再点同项 = 撤销）；全局模式点 profile → `applyProfile(name)`；切到「全局」→ 先 `addTempRule(key, name, -1)` 清本页规则、再应用全局；系统代理为 base 时「当前」按钮点不动（保持全局）；单层域名写入的 host 规则即主域规则。
+- **待实机**：重载扩展确认界面与文案（本地已逐张核验；`_locales` 需重载扩展才生效）。
+
 ### R2. （已澄清，无需实现）直连 / 系统代理 的使用习惯 — 状态：**关闭（2026-10-16）**
 
 - 用户理解实现原理后确认：与 Clash Verge 配合的场景**直接使用 `[系统代理]`** 即可，无需“指向 Clash 端口的 FixedProfile”等额外配置；popup 习惯问题不再提出。
@@ -116,9 +155,9 @@
   - i18n：`en_US` + `zh_CN` 删 sync / restoreOnline 族 msgid，新增 `options_group_webdavBackup` + `options_backup*`（17 条）；其它语言由 Weblate 托管，不手改。
 - **交互细节**：`保存设置` 显式保存并提示；`立即备份` / `从备份恢复` 先静默保存表单值再执行；自动备份开关变更即时保存；失败经 promise reject 回 UI alert。
 - **验证（2026-10-16）**：`npm run build` 全绿（coffeelint 全过，零 warning）；构建产物 grep：旧 sync 标识零残留、`OptionsBackup` / 三个备份方法已入 bundle；omega-target 测试 6 passing / 0 failing（`options_sync` 测试已删）；omega-pac 142 passing / 1 failing（既有 SOCKS5 失败，与改动无关）。
-- **待办**：实机确认（需重载扩展；`_locales` 重建后才生效）。
+- **待实机**：重载扩展后确认备份 / 恢复链路（代码、构建与测试已通过）。
 
-### R8. iOS 风格主题改造 + 设置页打磨 — 状态：**代码完成，构建通过，本地预览已核验，待实机确认**（2026-10-16）
+### R8. iOS 风格主题改造 + 设置页打磨 — 状态：**代码完成，构建通过，本地预览已核验**（2026-10-16）
 
 - **背景**：华总希望界面偏 iOS 风格；借机打磨设置页观感。
 - **已确认决策（D10）**：改写三套内置主题 `default-light` / `default-dark` / `default-auto` 的 base16 调色板为 iOS system 色系；`partials/theme.jade` 文案补 i18n；`base.css` 轻量打磨；**不改动 / 不删除他人主题列表**（`themes.json` 的 `others`）。
@@ -141,11 +180,13 @@
 
   - `base0A`（infoColor，驱动侧边栏选中项 / info 提示 / 焦点描边）取 systemBlue，与 `base09`（primaryColor，链接）同色——iOS 的链接与选中态同为蓝。
   - 四份调色板均加 `color-scheme`（浅色 / 深色；auto 两态各一），让原生控件与滚动条跟随主题。
-  - `base.css` 末尾新增「iOS-style polish」段（**只做覆盖，不改既有规则**）：`::selection`、`::placeholder`、`accent-color`（复选框 / 单选框用 iOS 蓝）、控件圆角 6px（含 `.dropdown-menu` 首尾项、`.input-group-addon` 对齐）、`.form-control:focus` 改为 3px 柔光环 + infoColor 描边、`.btn:hover` 硬描边由 `--defaultForeground` 改为 `--highlightBackground`、滚动条 8px。
+  - `base.css` 末尾新增「iOS-style polish」段（**只做覆盖，不改既有规则**）：`::selection`、`::placeholder`、`accent-color`（复选框 / 单选框用 iOS 蓝）、控件圆角 6px（含 `.dropdown-menu` 首尾项、`.input-group-addon` 对齐）、`.form-control` 的 border/box-shadow 过渡、滚动条 8px。（`::selection` 与按钮 hover / focus 描边的取色见 D12 修正；输入框聚焦沿用原有 `0 0 8px var(--infoColor)` 柔光环。）
   - `partials/theme.jade`：`Theme / Dark / Light / Auto / Clear / CSS Wiki` 硬编码英文改走 i18n（`options_theme` / `options_themeDark` / `options_themeLight` / `options_themeAuto` / `options_themeClear` / `options_themeCssWiki`，`en_US` + `zh_CN` 同步）。
   - `src/less/options.less`：删除 Stage B 后失效的 `.use-built-in-sync-enhance-tip` / `.sync-form *` 死样式。
 - **验证（2026-10-16）**：`npm run build` 全绿；构建产物中调色板 / `theme.html` / `_locales` 文案均含新内容；本地静态预览（临时目录，不入库）逐项核对浅色 / 深色下的导航选中项、表单（input-group / disabled / 焦点环）、按钮、alert、表格、复选框与 popup 导航项，`var(--infoColor)` 与焦点描边经 `getComputedStyle` 确认为 `rgb(0, 122, 255)`。
-- **待办**：实机确认（需重载扩展；`_locales` 重建后才生效）。
+- **修正（2026-10-16，D12）**：iOS 色系「看着不对」的根因不是调色板值，而是**交互态用了灰**——iOS polish 段把 `--selectionBackground`（base02 灰）当文字选中底、输入框聚焦环、按钮悬停描边用。改为：`::selection` 用 `--primaryColor` + 白字；删掉那条硬灰聚焦环（回落到原有 `0 0 8px var(--infoColor)` 柔光环）；按钮 hover / focus 描边用 `--primaryColor`。`variable.css` 的 base16 语义别名保持上游原样（primary=base09、info=base0A、secondary=base0D、warning=base0E），不改动他人主题的取色。主题是**快照**存在选项里，`background.coffee` 启动时按原主题（auto / dark / light，按标记推断）重建一次（识别标记 = 旧灰聚焦环 `0 0 0 3px var(--selectionBackground)`）；手改过的不动。
+- **待实机**：重载扩展后开一次设置页确认配色（快照会自动刷新，无需手动重选主题）。
+- **复核（2026-10-17）**：以构建产物搭「设置页主题预览板」（Bootstrap + `options.css` + `variable` / 主题 / `base.css`，按 `options.html` 的加载顺序）分别渲染浅色 / 深色：侧边栏选中项、链接、输入框聚焦、well、表格、按钮、alert、popup 导航项均取色自洽，无灰环 / 灰选中底。**已知既有局限（非本次引入）**：`.alert-warning` 等 Bootstrap 语境色与 `table .success` 行是硬编码浅色，深色主题下仍是浅底——上游一直如此，属独立议题，未在本次改动范围内。
 
 ## 4. 项目基础架构
 
@@ -192,7 +233,7 @@ cd omega-target && npm test
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则**：隐藏的 `_tempProfile`（SwitchProfile）+ `chrome.storage.session`（**浏览器重启即失效**）；入口有 popup 漏斗（支持“当前子域 / 整个主域”作用域切换，默认当前子域）、请求信息详情、网络监测页、临时规则管理器；临时规则按域名层级排序（子域在前，首条命中优先）；`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）`。
-- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；菜单分区为「本页路由」卡片——host + 临时规则命中结果 /「全局情景模式」列表，临时规则下拉内置作用域分段控件；“添加条件”与“请求信息”表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
+- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部一行：站点 + 「全局 / 当前」分段按钮，下面**同一套**情景模式列表。按钮是「本页跟随谁」的开关：切到「全局」= 跟随全局并清除本页临时规则，点选应用该全局 profile；切到「当前」= 用本页独立情景模式，点选写入所选作用域的临时规则（再点同项撤销），子域时才出现「本子域 / 整个主域」，系统代理在此模式下禁用并标注「仅全局」；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
 
 ## 5. 决策日志（Decision Log）
@@ -205,6 +246,9 @@ cd omega-target && npm test
 | D4 | 任务开始第一步 = 确认需求是否已满足 / 可用 | — | 华总明确要求，避免重复实现 |
 | D5 | 临时覆盖按**子域（host）**生效，**不做**按标签页（per-tab） | 本地代理 / 按标签页路由 | `chrome.proxy` 是浏览器级全局配置、无法按标签页；“按环境子域切换”这一主流场景用子域覆盖可等价满足 |
 | D6 | popup 菜单分区化：**「本页路由」卡片 + 「全局情景模式」列表**，本页卡片明示临时规则命中结果；作用域选择用分段控件 | 仅在列表行上加角标 / 维持原双重高亮 | R1 实机暴露“双重高亮”歧义（全局 auto switch vs 本页临时选择）；分区后不下拉也能一眼看出本页实际走什么，且区分“全局当前”与“本页覆盖”两个概念 |
+| D7 | 本页路由 = **互斥开关**（「本页覆盖全局」）：OFF 跟随全局；**点击任意全局行 = 应用全局 + 清除本页临时规则**（host + 主域）；下拉列表与全局列表同序（系统代理为禁用行） | 保持临时/全局并列展示 / 点全局时保留临时规则 / 隐藏当前全局等旧过滤 | R4 实机后华总指出“临时和全局应该互斥”“这个临时应该要变成全局或 无”；开关让“本页是否被覆盖”一眼可见，两列表同序消除“情景范围不一致”观感 |
+| D11 | popup 只留**一套列表** + 顶部「全局 / 当前」分段按钮。按钮是「本页跟随谁」的开关：切到**全局** = 跟随全局并清除本页临时规则（host + 主域），列表高亮 = 当前全局；切到**当前** = 本页用独立情景模式，不改动已有规则，列表高亮 = 该作用域已有的临时规则（浅蓝底 + 勾），点选写入该作用域的临时规则（再点同项即撤销）。作用域（本子域 / 整个主域）仅在「当前」且为子域时出现 | 保留 R5 的两张卡片 + 「本页覆盖全局」开关 | R5 实机后华总指出页面乱：开关文案绕、两套列表重复；一个按钮决定这一套列表的含义即可。切到「全局」即清覆盖，是为了让「高亮哪一行」与「实际走什么路由」永远一致（否则会重现 R4/R5 的“双重状态”困惑） |
+| D12 | 保留 iOS 调色板，只修**交互态的灰**：`::selection`、输入框聚焦、按钮悬停描边改用主色；旧主题快照由 background 启动时按原主题重建一次 | 整体改回 Tomorrow / 撤销 iOS 方向 | 「iOS 色彩不对」的根因不是调色板值，而是 polish 把 `--selectionBackground`（base02 灰）当成文字选中底 / 聚焦环 / 描边用。base16 语义别名保持上游原样（primary=base09、info=base0A），不波及其它主题 |
 | D8 | 设置页精简：条件类型**固定为高级列表**（删开关）；快速切换**端到端移除**；删「导出旧版规则列表」 | 保留开关 / 仅隐藏 UI / 保留快速切换 | 自用场景不需要“基础/高级条件”双模式与图标循环切换；端到端删除可去掉 context menu、storage 字段与迁移代码 |
 | D9 | WebDAV 备份 = **单份最新 + 自动备份开关 + 手动恢复**；复用 `.bak` 格式与既有 WebDAV 目录约定 | 多版本历史 / 保留 Gist 同步 | 个人备份点单一可信、实现简单；复用既有客户端布局与恢复链路；Gist / 内置同步对外依赖不稳定且不再需要 |
 | D10 | 三套内置主题改造为 **iOS system 色系** + `theme.jade` 文案 i18n + `base.css` 打磨 | 新增一套主题 / 全量重写样式体系 | 不改结构、风险低；内置主题覆盖浅色 / 深色 / 自动三态即可；避免动他人主题列表 |

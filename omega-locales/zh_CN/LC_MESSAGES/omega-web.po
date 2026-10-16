@@ -1063,6 +1063,12 @@ msgstr "当前全局情景模式不支持临时规则。切换到自动切换等
 msgid "popup_tempRuleHelp"
 msgstr "临时规则仅在本浏览器会话中生效，优先于全局情景模式。"
 
+msgid "popup_tempRuleSystemGlobalOnly"
+msgstr "仅全局"
+
+msgid "popup_tempRuleSystemGlobalOnlyHelp"
+msgstr "系统代理不能用于当前页（浏览器 PAC 限制）。切回「全局」即可选择。"
+
 msgid "popup_sectionPage"
 msgstr "本页路由"
 
@@ -1071,6 +1077,15 @@ msgstr "全局情景模式"
 
 msgid "popup_current"
 msgstr "当前"
+
+msgid "popup_modeGlobal"
+msgstr "全局"
+
+msgid "popup_modePage"
+msgstr "当前"
+
+msgid "popup_modeHelp"
+msgstr "全局对所有标签生效。当前只作用于上方这个站点，浏览器重启后失效。"
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$个资源未加载"

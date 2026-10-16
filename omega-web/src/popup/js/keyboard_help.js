@@ -4,7 +4,7 @@
     'js-system': 'S',
     'js-external': 'E',
     'js-addrule': 'A',
-    'js-temprule': 'T',
+    'js-mode-page': 'T',
     'js-option': 'O',
     'js-reqinfo': 'R'
   }
@@ -26,7 +26,11 @@
       span.classList.add('om-keyboard-help');
       span.textContent = key;
       var reference = element.querySelector('.glyphicon');
-      reference.parentNode.insertBefore(span, reference.nextSibling);
+      if (reference) {
+        reference.parentNode.insertBefore(span, reference.nextSibling);
+      } else {
+        element.insertBefore(span, element.firstChild);
+      }
     }
   }
 })();

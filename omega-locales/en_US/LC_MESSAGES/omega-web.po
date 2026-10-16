@@ -1197,6 +1197,12 @@ msgstr "Temp rules are unavailable with the current global profile. Choose a swi
 msgid "popup_tempRuleHelp"
 msgstr "Temp rules last until the browser restarts and take precedence over the global profile."
 
+msgid "popup_tempRuleSystemGlobalOnly"
+msgstr "Global only"
+
+msgid "popup_tempRuleSystemGlobalOnlyHelp"
+msgstr "The system proxy cannot be used for the current page (PAC limitation). Switch to Global to select it."
+
 msgid "popup_sectionPage"
 msgstr "Page routing"
 
@@ -1205,6 +1211,15 @@ msgstr "Global profiles"
 
 msgid "popup_current"
 msgstr "Current"
+
+msgid "popup_modeGlobal"
+msgstr "Global"
+
+msgid "popup_modePage"
+msgstr "This page"
+
+msgid "popup_modeHelp"
+msgstr "Global applies to every tab. This page applies only to the site shown above, until the browser restarts."
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$ failed resources"

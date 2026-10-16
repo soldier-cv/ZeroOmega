@@ -278,27 +278,6 @@ msgstr "初始情景模式"
 msgid "options_startupProfile_none"
 msgstr "(当前情景模式)"
 
-msgid "options_showConditionTypesAdvanced"
-msgstr "显示高级切换条件"
-
-msgid "options_showConditionTypesAdvancedHelp"
-msgstr "解锁一些新种类的、功能强大的但难以掌握的切换条件。对于大多数情况来说，基本条件类型应该就足够，因此不推荐该选项。"
-
-msgid "options_quickSwitch"
-msgstr "快速切换"
-
-msgid "options_cycledProfiles"
-msgstr "循环情景模式"
-
-msgid "options_cycledProfilesHelp"
-msgstr "点击图标或按下快捷键时，依次循环切换到以下情景模式。"
-
-msgid "options_cycledProfilesTooFew"
-msgstr "必须至少选择2个情景模式才能进行切换。请从下方框中拖动情景模式到此框。"
-
-msgid "options_notCycledProfiles"
-msgstr "不循环切换的情景模式 (拖动到上面的框中启用切换)"
-
 msgid "options_group_proxyChanges"
 msgstr "代理设置变化"
 
@@ -385,12 +364,6 @@ msgstr "导出PAC（代理自动设置）文件,以便在其它浏览器使用�
 
 msgid "options_exportProfileHelp"
 msgstr "如需导出情景模式，请使用情景模式设置页面右上角的工具栏。"
-
-msgid "options_exportLegacyRuleList"
-msgstr "导出规则列表时使用 Proxy Switchy!/SwitchyPlus/SwitchySharp 兼容格式。"
-
-msgid "options_exportLegacyRuleListHelp"
-msgstr "如果您需要发布规则列表给那些软件的用户，请启用此选项。<br>建议您提醒订阅者升级到 ZeroOmega 以享受新版功能。"
 
 msgid "options_group_importExportSettings"
 msgstr "选项"
@@ -1178,9 +1151,6 @@ msgstr "检查此[链接目标]将会使用的代理"
 
 msgid "contextMenu_inspectElement"
 msgstr "检查此[元素]使用的代理"
-
-msgid "contextMenu_enableQuickSwitch"
-msgstr "启用快速切换"
 
 msgid "contextMenu_networkMonitor"
 msgstr "网络监视器"

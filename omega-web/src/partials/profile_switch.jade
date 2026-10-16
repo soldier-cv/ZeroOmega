@@ -5,7 +5,7 @@ div(ng-controller='SwitchProfileCtrl')
       button.close.close-condition-help(type='button' ng-click='conditionHelp.show = false')
         span(aria-hidden='true') ×
         span.sr-only {{'dialog_close' | tr}}
-    div.condition-help(ng-repeat='group in (showConditionTypes == 0 ? basicConditionTypes : advancedConditionTypes)')
+    div.condition-help(ng-repeat='group in advancedConditionTypes')
       h4(ng-show="!!('condition_group_' + group.group | tr)")
         a(ng-click='expandedSection.id = $index' role='button')
           span.glyphicon(ng-class="{'glyphicon-chevron-down': expandedSection.id == $index, 'glyphicon-chevron-right': expandedSection.id != $index}")

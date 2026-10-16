@@ -1,9 +1,7 @@
 module.exports = ->
   schemaVersion: 2
-  "-enableQuickSwitch": false
   "-refreshOnProfileChange": true
   "-startupProfileName": ""
-  "-quickSwitchProfiles": []
   "-revertProxyChanges": true
   "-confirmDeletion": true
   "-showInspectMenu": true

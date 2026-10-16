@@ -59,45 +59,15 @@ class ChromeOptions extends OmegaTarget.Options
           @ready.then( =>
             @updateProfile()
           )
-    chrome.contextMenus?.onClicked.addListener((info, tab) =>
-      @ready.then( =>
-        switch info.menuItemId
-          when 'enableQuickSwitch'
-            changes = {}
-            changes['-enableQuickSwitch'] = info.checked
-            setOptions = @_setOptions(changes)
-            if info.checked and not @_quickSwitchCanEnable
-              setOptions.then ->
-                chrome.tabs.create(
-                  url: chrome.runtime.getURL('options.html#/ui')
-                )
-      )
-    )
 
     chrome.action.onClicked.addListener (tab) =>
       if browser?.proxy?.onRequest?
         browser.permissions.request({origins: ["<all_urls>"]})
       @ready.then( =>
         @clearBadge()
-        if not @_options['-enableQuickSwitch']
-          # If we reach here, then the browser does not support popup.
-          # Let's open the popup page in a tab.
-          chrome.tabs.create(url: 'popup/index.html')
-          return
-        profiles = @_options['-quickSwitchProfiles']
-        index = profiles.indexOf(@_currentProfileName)
-        index = (index + 1) % profiles.length
-        @applyProfile(profiles[index]).then =>
-          if @_options['-refreshOnProfileChange']
-            url = tab.pendingUrl or tab.url
-            return if not url
-            return if url.substr(0, 6) == 'chrome'
-            return if url.substr(0, 6) == 'about:'
-            return if url.substr(0, 4) == 'moz-'
-            if tab.pendingUrl
-              chrome.tabs.update(tab.id, {url: url})
-            else
-              chrome.tabs.reload(tab.id)
+        # If we reach here, then the browser does not support popup.
+        # Let's open the popup page in a tab.
+        chrome.tabs.create(url: 'popup/index.html')
       )
 
   init: (startupCheck) ->
@@ -193,17 +163,6 @@ class ChromeOptions extends OmegaTarget.Options
     else
       chrome.action.setBadgeText?(text: '')
     return
-
-  _quickSwitchCanEnable: false
-  setQuickSwitch: (quickSwitch, canEnable) ->
-    @_quickSwitchCanEnable = canEnable
-    if quickSwitch
-      chrome.action.setPopup({popup: ''})
-    else
-      chrome.action.setPopup({popup: globalThis.POPUPHTMLURL})
-
-    chrome.contextMenus?.update('enableQuickSwitch', {checked: !!quickSwitch})
-    Promise.resolve()
 
   setInspect: (settings) ->
     if @_inspect

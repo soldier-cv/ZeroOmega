@@ -22,53 +22,9 @@ angular.module('omega').controller 'SwitchProfileCtrl', ($scope, $rootScope,
     fileName = $scope.profile.name.replace(/\W+/g, '_')
     downloadFile(blob, "OmegaRules_#{fileName}.sorl")
 
-  exportLegacyRuleList = ->
-    wildcardRules = ''
-    regexpRules = ''
-    for rule in $scope.profile.rules
-      i = ''
-      if rule.profileName == $scope.attachedOptions.defaultProfileName
-        i = '!'
-      switch rule.condition.conditionType
-        when 'HostWildcardCondition'
-          wildcardRules += i + '@*://' + rule.condition.pattern + '/*' + '\r\n'
-        when 'UrlWildcardCondition'
-          wildcardRules += i + '@' + rule.condition.pattern + '\r\n'
-        when 'UrlRegexCondition'
-          regexpRules += i + rule.condition.pattern + '\r\n'
-
-    text = """
-      ; Summary: Proxy Switchy! Exported Rule List
-      ; Date: #{new Date().toLocaleDateString()}
-      ; Website: #{trFilter('ruleList_usageUrl')}
-
-      #BEGIN
-
-      [wildcard]
-      #{wildcardRules}
-      [regexp]
-      #{regexpRules}
-      #END
-    """
-    blob = new Blob [text], {type: "text/plain;charset=utf-8"}
-    fileName = $scope.profile.name.replace(/\W+/g, '_')
-    downloadFile(blob, "SwitchyRules_#{fileName}.ssrl")
-
   # == Condition types ==
   $scope.conditionHelp =
     show: ($location.search().help == 'condition')
-
-  $scope.basicConditionTypes = [
-    {
-      group: 'default'
-      types: [
-        'HostWildcardCondition'
-        'UrlWildcardCondition'
-        'UrlRegexCondition'
-        'FalseCondition'
-      ]
-    }
-  ]
 
   $scope.advancedConditionTypes = [
     {
@@ -105,23 +61,14 @@ angular.module('omega').controller 'SwitchProfileCtrl', ($scope, $rootScope,
         result.push({type: type, group: 'condition_group_' + group.group})
     result
 
-  basicConditionTypesExpanded = expandGroups($scope.basicConditionTypes)
-  advancedConditionTypesExpanded = expandGroups($scope.advancedConditionTypes)
+  $scope.conditionTypes = expandGroups($scope.advancedConditionTypes)
 
-  basicConditionTypeSet = {}
-  for type in basicConditionTypesExpanded
-    basicConditionTypeSet[type.type] = type.type
-
-  $scope.conditionTypes = basicConditionTypesExpanded
-
-  $scope.showConditionTypes = 0
-  $scope.hasConditionTypes = 0
   $scope.hasUrlConditions = false
   $scope.isUrlConditionType =
     'UrlWildcardCondition': true
     'UrlRegexCondition': true
 
-  updateHasConditionTypes = ->
+  updateRuleConditions = ->
     return unless $scope.profile?.rules?
 
     $scope.hasUrlConditions = false
@@ -129,8 +76,6 @@ angular.module('omega').controller 'SwitchProfileCtrl', ($scope, $rootScope,
       if $scope.isUrlConditionType[rule.condition.conditionType]
         $scope.hasUrlConditions = true
         break
-
-    return unless $scope.hasConditionTypes == 0
     for rule in $scope.profile.rules
       # Convert TrueCondition to a HostWildcardCondition with pattern '*'.
       if rule.condition.conditionType == 'TrueCondition'
@@ -138,39 +83,9 @@ angular.module('omega').controller 'SwitchProfileCtrl', ($scope, $rootScope,
           conditionType: 'HostWildcardCondition'
           pattern: '*'
         }
-      if not basicConditionTypeSet[rule.condition.conditionType]
-        $scope.hasConditionTypes = 1
-        $scope.showConditionTypes = 1
-        break
 
-  $scope.$watch 'options["-showConditionTypes"]', (show) ->
-    show ||= 0
-    if show > 0
-      $scope.showConditionTypes = show
-    else
-      updateHasConditionTypes()
-      $scope.showConditionTypes = $scope.hasConditionTypes
-
-    if $scope.options['-exportLegacyRuleList']
-      if $scope.showConditionTypes > 0
-        $scope.setExportRuleListHandler(exportRuleList, {warning: true})
-      else
-        $scope.setExportRuleListHandler(exportLegacyRuleList)
-    else
-      $scope.setExportRuleListHandler(exportRuleList)
-
-    if $scope.showConditionTypes == 0
-      $scope.conditionTypes = basicConditionTypesExpanded
-      if $scope.options['-exportLegacyRuleList']
-        $scope.setExportRuleListHandler exportLegacyRuleList
-    else
-      $scope.conditionTypes = advancedConditionTypesExpanded
-      if not $scope.options["-showConditionTypes"]?
-        $scope.options["-showConditionTypes"] = $scope.showConditionTypes
-      unwatchRules?()
-
-  if $scope.hasConditionTypes == 0
-    unwatchRules = $scope.$watch 'profile.rules', updateHasConditionTypes, true
+  $scope.setExportRuleListHandler(exportRuleList)
+  $scope.$watch 'profile.rules', updateRuleConditions, true
 
   # == Rules ==
   rulesReadyDefer = $q.defer()

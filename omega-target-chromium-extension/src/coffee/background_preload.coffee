@@ -8,14 +8,6 @@ initContextMenu = ->
   return unless chrome.contextMenus
   chrome.contextMenus.removeAll()
   chrome.contextMenus.create({
-    id: 'enableQuickSwitch'
-    title: chrome.i18n.getMessage('contextMenu_enableQuickSwitch')
-    type: 'checkbox'
-    checked: false
-    contexts: ["action"]
-  })
-
-  chrome.contextMenus.create({
     id: 'network'
     title: chrome.i18n.getMessage('contextMenu_networkMonitor')
     contexts: ["action"]

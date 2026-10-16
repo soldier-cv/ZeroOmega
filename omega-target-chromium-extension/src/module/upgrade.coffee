@@ -9,7 +9,6 @@ module.exports = (oldOptions, i18n) ->
     boolItems =
       '-confirmDeletion': 'confirmDeletion'
       '-refreshOnProfileChange': 'refreshTab'
-      '-enableQuickSwitch': 'quickSwitch'
       '-revertProxyChanges': 'preventProxyChanges'
     for own key, oldKey of boolItems
       options[key] = !!config[oldKey]
@@ -146,10 +145,6 @@ module.exports = (oldOptions, i18n) ->
 
     startupId = config['startupProfileId']
     options['-startupProfileName'] = nameMap[startupId] || ''
-
-    quickSwitch = try JSON.parse(oldOptions['quickSwitchProfiles'])
-    options['-quickSwitchProfiles'] = if not quickSwitch? then [] else
-      quickSwitch.map (p) -> nameMap[p]
 
     if config['ruleListProfileId']
       rulelist.matchProfileName =

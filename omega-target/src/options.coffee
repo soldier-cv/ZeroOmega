@@ -504,10 +504,6 @@ class Options
           @_setOptions({'-showExternalProfile': true}, {persist: true})
         @_state.set({'showExternalProfile': showExternal})
 
-      quickSwitchProfiles = changes['-quickSwitchProfiles']
-      quickSwitchProfiles = @_cleanUpQuickSwitchProfiles(quickSwitchProfiles)
-      if changes['-enableQuickSwitch']? or quickSwitchProfiles?
-        @reloadQuickSwitch()
       if changes['-downloadInterval']?
         @schedule 'updateProfile', @_options['-downloadInterval']
       if changes['-showInspectMenu']? or changes == @_options
@@ -525,33 +521,6 @@ class Options
 
     handler()
     @_storage.watch null, handler
-
-  _cleanUpQuickSwitchProfiles: (quickSwitchProfiles) ->
-    return unless quickSwitchProfiles?
-    seenQuickSwitchProfile = {}
-    validQuickSwitchProfiles = quickSwitchProfiles.filter (name) =>
-      return false if not name
-      key = OmegaPac.Profiles.nameAsKey(name)
-      return false if seenQuickSwitchProfile[key]
-      return false if not OmegaPac.Profiles.byName(name, @_options)
-      seenQuickSwitchProfile[key] = true
-      return true
-    if validQuickSwitchProfiles.length != quickSwitchProfiles.length
-      @_setOptions(
-        {'-quickSwitchProfiles': validQuickSwitchProfiles}, {persist: true})
-    return validQuickSwitchProfiles
-
-  ###*
-  # Reload the quick switch according to settings.
-  # @returns {Promise} A promise which is fulfilled when the quick switch is set
-  ###
-  reloadQuickSwitch: ->
-    profiles = @_options['-quickSwitchProfiles']
-    profiles = null if profiles.length < 2
-    if @_options['-enableQuickSwitch']
-      @setQuickSwitch(profiles, !!profiles)
-    else
-      @setQuickSwitch(null, !!profiles)
 
   ###*
   # Apply the settings related to element proxy inspection.
@@ -735,16 +704,6 @@ class Options
   currentProfileChanged: -> null
 
   ###*
-  # Set or disable the quick switch profiles.
-  # In base class, this method is not implemented and will not do anything.
-  # @param {string[]|null} quickSwitch The profile names, or null to disable
-  # @param {boolean} canEnable Whether user can enable quick switch or not.
-  # @returns {Promise} A promise which is fulfilled when the quick switch is set
-  ###
-  setQuickSwitch: (quickSwitch, canEnable) ->
-    Promise.resolve()
-
-  ###*
   # Schedule a task that runs every periodInMinutes.
   # In base class, this method is not implemented and will not do anything.
   # @param {string} name The name of the schedule. If there is a previous
@@ -840,14 +799,6 @@ class Options
 
     if @_options['-startupProfileName'] == fromName
       changes['-startupProfileName'] = toName
-    quickSwitch = @_options['-quickSwitchProfiles']
-    # Change fromName to toName in Quick Switch, but only if it does not contain
-    # toName already. Otherwise it may cause duplicates.
-    if quickSwitch.indexOf(toName) < 0
-      for i in [0...quickSwitch.length]
-        if quickSwitch[i] == fromName
-          quickSwitch[i] = toName
-          changes['-quickSwitchProfiles'] = quickSwitch
 
     return changes
 

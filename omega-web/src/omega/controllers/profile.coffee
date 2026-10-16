@@ -65,11 +65,6 @@ angular.module('omega').controller 'ProfileCtrl', ($scope, $stateParams,
         delete $rootScope.options[OmegaPac.Profiles.nameAsKey(profileName)]
         if $rootScope.options['-startupProfileName'] == profileName
           $rootScope.options['-startupProfileName'] = ""
-        quickSwitch = $rootScope.options['-quickSwitchProfiles']
-        for i in [0...quickSwitch.length]
-          if profileName == quickSwitch[i]
-            quickSwitch.splice i, 1
-            break
         $state.go('ui')
 
   # The watcher should be applied on the calling scope.

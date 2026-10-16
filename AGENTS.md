@@ -90,6 +90,31 @@
   - 新增根目录 `.gitattributes`（`*.coffee text eol=lf`）：修复 Windows 检出（CRLF）下 coffeelint 误报长 URL 注释、`grunt` 直接失败的问题（详见 §4.3“行尾要求”）；
   - 本机首次完整跑通 `npm run deps` + `npm run build`，产出可加载扩展（见 §4.3）。
 
+### R6. 设置页精简（移除高级条件开关 / 快速切换 / 旧版规则导出） — 状态：**代码完成，构建与测试通过，待提交**（2026-10-16）
+
+- **背景**：华总自用精简——不需要「显示高级切换条件」开关（永久高级即可）、不用「快速切换」（点击图标循环切 profile）、不用「导出旧版规则列表」。
+- **已确认决策（D8）**：① 条件类型固定为 `advancedConditionTypes`；② 快速切换端到端移除；③ 导入导出删「导出旧版规则列表」勾选；④ 顺手清理关联死代码。
+- **实现（2026-10-16）**：
+  - omega-web：`partials/ui.jade` 删「显示高级切换条件」「快速切换」全部 UI；`partials/io.jade` 删旧版规则导出勾选；`partials/profile_switch.jade` 条件帮助固定 `advancedConditionTypes`；`controllers/switch_profile.coffee` 删 `exportLegacyRuleList` / `basicConditionTypes` / `-showConditionTypes` watcher，新增 `updateRuleConditions`（hasUrlConditions + TrueCondition→HostWildcardCondition(`*`) 转换），`setExportRuleListHandler(exportRuleList)` 一次性设置；`controllers/profile.coffee` 删删除情景模式时清理 `-quickSwitchProfiles` 的代码；删除 `controllers/quick_switch.coffee`。
+  - omega-target：`src/options.coffee` 删 `_watch` 中 quick switch 块、`_cleanUpQuickSwitchProfiles`、`reloadQuickSwitch`、基类 `setQuickSwitch`、`_replaceRefChanges` quickSwitch 段；`default_options.coffee` 删 `-enableQuickSwitch` / `-quickSwitchProfiles`。
+  - extension：`module/options.coffee` 删 context menu 监听与图标点击循环（保留「无 popup 时打开 popup 页」回退）；`background_preload.coffee` 删菜单项；`external_api.coffee` 删 `reloadQuickSwitch()`；`upgrade.coffee` 删 quickSwitch 迁移字段。
+  - i18n：`en_US` + `zh_CN` 删废弃 msgid（`options_showConditionTypesAdvanced*`、`options_quickSwitch`、`options_cycledProfiles*`、`options_notCycledProfiles`、`options_exportLegacyRuleList*`、`contextMenu_enableQuickSwitch`）；其它语言由 Weblate 托管，不手改。
+- **语义说明**：TrueCondition→HostWildcardCondition(`*`) 转换现在无条件执行（原先仅「基本模式」下执行）；曾启用高级模式的 profile 首次打开时其 `TrueCondition` 会被改写（语义等价）。规则导出统一 `.sorl`。
+- **验证（2026-10-16）**：源码与构建产物 grep 无残留；`npm run build` 全绿（coffeelint 全过；jade 仅 2 条既有 warning）；omega-target 测试 14 passing / 5 failing（失败均为 `options_sync` 既有失败，Stage B 将删除该文件及其测试）。
+
+### R7. WebDAV 自动备份 / 恢复（替代 Gist 同步与在线恢复） — 状态：**实施中**（2026-10-16）
+
+- **背景**：替代「Gist 同步」与「在线恢复」（依赖 GitHub / 上游服务，不稳定且不再需要）。华总自用 WebDAV（群晖 / Nextcloud 等）作为单一可信备份点。
+- **已确认决策（D9）**：远端**单份最新**（上传新文件后删除旧文件）+「自动备份」开关（默认关）+ 手动「立即备份 / 从备份恢复」；备份内容 = 完整 options JSON（沿用 `.bak` 格式；临时规则在 `chrome.storage.session`，天然不在备份内）；WebDAV 布局复用既有客户端约定（`zeroomega/` 子目录 + `zeroomega-commit.txt` + `zeroomega-<20hex>.json`）；凭据仅存本地（`omega.local.*`）。
+- **实现要点（进行中）**：新增 `module/options_backup.coffee`（WebDAV 客户端 + 备份管理器）；`background.coffee` 把方法挂到 options 实例供消息路由（`backupOptionsNow` / `restoreOptionsFromBackup` / `setOptionsBackupConfig`）；删除 `OptionsSync`、`ChromeSyncStorage`、同步实现（除 WebDAV 传输层）及 `options_sync` 测试；`partials/io.jade` + `controllers/io.coffee` 重做备份设置区。
+- **细节随实现完成后回填。**
+
+### R8. iOS 风格主题改造 + 设置页打磨 — 状态：**待开始**（2026-10-16）
+
+- **背景**：华总希望界面偏 iOS 风格；借机打磨设置页观感。
+- **已确认决策（D10）**：改写三套内置主题 `default-light` / `default-dark` / `default-auto` 的 base16 调色板为 iOS system 色系；`partials/theme.jade` 文案补 i18n；`base.css` 轻量打磨；**不改动 / 不删除他人主题列表**（`themes.json` 的 `others`）。
+- **状态**：待开始（排在 Stage B 之后）。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -148,3 +173,6 @@ cd omega-target && npm test
 | D4 | 任务开始第一步 = 确认需求是否已满足 / 可用 | — | 华总明确要求，避免重复实现 |
 | D5 | 临时覆盖按**子域（host）**生效，**不做**按标签页（per-tab） | 本地代理 / 按标签页路由 | `chrome.proxy` 是浏览器级全局配置、无法按标签页；“按环境子域切换”这一主流场景用子域覆盖可等价满足 |
 | D6 | popup 菜单分区化：**「本页路由」卡片 + 「全局情景模式」列表**，本页卡片明示临时规则命中结果；作用域选择用分段控件 | 仅在列表行上加角标 / 维持原双重高亮 | R1 实机暴露“双重高亮”歧义（全局 auto switch vs 本页临时选择）；分区后不下拉也能一眼看出本页实际走什么，且区分“全局当前”与“本页覆盖”两个概念 |
+| D8 | 设置页精简：条件类型**固定为高级列表**（删开关）；快速切换**端到端移除**；删「导出旧版规则列表」 | 保留开关 / 仅隐藏 UI / 保留快速切换 | 自用场景不需要“基础/高级条件”双模式与图标循环切换；端到端删除可去掉 context menu、storage 字段与迁移代码 |
+| D9 | WebDAV 备份 = **单份最新 + 自动备份开关 + 手动恢复**；复用 `.bak` 格式与既有 WebDAV 目录约定 | 多版本历史 / 保留 Gist 同步 | 个人备份点单一可信、实现简单；复用既有客户端布局与恢复链路；Gist / 内置同步对外依赖不稳定且不再需要 |
+| D10 | 三套内置主题改造为 **iOS system 色系** + `theme.jade` 文案 i18n + `base.css` 打磨 | 新增一套主题 / 全量重写样式体系 | 不改结构、风险低；内置主题覆盖浅色 / 深色 / 自动三态即可；避免动他人主题列表 |

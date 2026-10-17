@@ -1,5 +1,5 @@
 angular.module('omega').controller 'IoCtrl', (
-  $scope, $rootScope, omegaTarget, downloadFile
+  $scope, $rootScope, omegaTarget, downloadFile, $window
 ) ->
 
   $scope.backupConfig =
@@ -65,10 +65,21 @@ angular.module('omega').controller 'IoCtrl', (
       message: (e and e.message) or e + ''
     )
 
+  # input[type=url] 对 "host:port" 这类写法校验不过，Angular 会把 ng-model 置空：
+  # 用户看到「已保存」，实际存的是空地址，随后备份/恢复报 "WebDAV URI is required."
+  # 输入框改成 text，这里补全 scheme，让内网常见写法一次就存对。
+  normalizeUri = (uri) ->
+    uri = (uri or '').trim()
+    return uri unless uri
+    return uri if /^https?:\/\//i.test(uri)
+    "http://#{uri}"
+
   saveBackupConfig = ->
+    uri = normalizeUri($scope.backupConfig.uri)
+    $scope.backupConfig.uri = uri
     $scope.savingBackupConfig = true
     omegaTarget.setOptionsBackupConfig({
-      uri: ($scope.backupConfig.uri or '').trim()
+      uri: uri
       username: $scope.backupConfig.username
       password: $scope.backupConfig.password
       autoBackup: !!$scope.backupConfig.autoBackup
@@ -105,10 +116,9 @@ angular.module('omega').controller 'IoCtrl', (
     saveBackupConfig().then(->
       omegaTarget.restoreOptionsFromBackup()
     ).then(->
-      $rootScope.showAlert(
-        type: 'success'
-        i18n: 'options_backupRestoreSuccess'
-        message: 'Options restored from backup.'
-      )
+      # 恢复是 background 侧整体替换 options（options.reset），页面持有的副本
+      # 不会收到变更通知，不重载会让人以为「提示成功但没生效」。直接刷新页面，
+      # 让界面等于实际配置（与从本地文件恢复的入口行为一致）。
+      $window.location.reload()
     ).catch(showBackupError).finally ->
       $scope.restoringBackup = false

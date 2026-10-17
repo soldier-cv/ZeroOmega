@@ -73,11 +73,5 @@ steps:
   - name: smoke
     image: docker.1ms.run/library/alpine:3.20
     commands:
-      # 从分发入口把产物拉回来验一遍（走宿主网关，不用代理）
-      - apk add --no-cache curl unzip >/dev/null
-      - curl -fsS --noproxy '*' -o /tmp/c.zip http://172.17.0.1:8088/res/zeroomega/chromium-release.zip
-      - test -s /tmp/c.zip
-      - unzip -p /tmp/c.zip manifest.json | grep -q '"manifest_version": 3'
-      - unzip -p /tmp/c.zip manifest.json | grep -q '__MSG_manifest_app_name__'
-      - unzip -l /tmp/c.zip | grep -q 'js/background.js'
-      - echo "smoke OK -> $$(wc -c < /tmp/c.zip) bytes"
+      # 从分发入口把产物拉回来验一遍（脚本独立成文件，避开 yml 里 ": " 的 YAML 坑）
+      - sh tools/ci/smoke_check.sh

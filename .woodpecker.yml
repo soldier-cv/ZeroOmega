@@ -1,0 +1,83 @@
+# ZeroOmega 定制版：构建 + 刷新内网分发包
+#
+# 触发：tag（v*）/ manual；日常 push 不触发（避免占集群资源）
+# 产物：/data/static-deploy/res/zeroomega/（static-deploy 的 /res 免鉴权分发区）
+#       —— 各设备按 http://100.64.0.88:8088/res/zeroomega/INSTALL.md 安装
+# 手动触发时可传 deploy_tag=<版本串> 指定落盘版本号（大小写都认）
+
+when:
+  - event: tag
+    ref: refs/tags/v*
+  - event: manual
+
+steps:
+  - name: resolve-tag
+    image: docker.1ms.run/library/alpine:3.20
+    commands:
+      - set -eu
+      - >-
+        if [ -n "$${CI_COMMIT_TAG:-}" ]; then echo "$${CI_COMMIT_TAG}";
+        elif [ -n "$${deploy_tag:-}" ]; then echo "$${deploy_tag}";
+        elif [ -n "$${DEPLOY_TAG:-}" ]; then echo "$${DEPLOY_TAG}";
+        else echo "dev-$${CI_COMMIT_SHA:-unknown}"; fi | cut -c1-40 > .release_tag
+      - cat .release_tag
+
+  - name: build
+    image: docker.1ms.run/library/node:22-alpine
+    environment:
+      HTTP_PROXY: http://100.64.0.88:7897
+      HTTPS_PROXY: http://100.64.0.88:7897
+      http_proxy: http://100.64.0.88:7897
+      https_proxy: http://100.64.0.88:7897
+      NO_PROXY: localhost,127.0.0.1,100.64.0.0/10
+    commands:
+      # bower 走 git 拉 GitHub 依赖；node-gyp 兜底需要 python3/make/g++
+      - apk add --no-cache git python3 make g++ >/dev/null
+      - cd omega-build
+      - npm run deps
+      - npm run build
+      - npm run release
+      - ls -la ../dist
+
+  - name: test
+    image: docker.1ms.run/library/node:22-alpine
+    commands:
+      # 基线（AGENTS.md §4.3）：omega-pac 142 passing / 1 既有失败（SOCKS5，与改动无关）
+      #                          omega-target 必须全绿
+      - >-
+        cd omega-pac && (npm test 2>&1 | tee /tmp/pac.log || true);
+        PASS=$$(grep -oE '[0-9]+ passing' /tmp/pac.log | grep -oE '[0-9]+' | head -1);
+        echo "omega-pac passing=$${PASS:-none}";
+        [ -n "$${PASS:-}" ] && [ "$${PASS}" -ge 142 ] || { echo "omega-pac 通过数低于基线"; exit 1; }
+      - cd ../omega-target && npm test
+
+  - name: publish
+    image: docker.1ms.run/library/python:3.12-alpine
+    volumes:
+      - /data/static-deploy/res:/res
+    commands:
+      - set -eu
+      - VERSION=$$(cat .release_tag)
+      - echo "落盘版本: $${VERSION}"
+      - cp -f dist/chromium-release.zip dist/firefox-release.zip /res/zeroomega/
+      - cd /res/zeroomega
+      - sha256sum chromium-release.zip > chromium-release.zip.sha256
+      - sha256sum firefox-release.zip > firefox-release.zip.sha256
+      - cd - >/dev/null
+      - >-
+        python3 tools/ci/refresh_res_manifest.py --res /res --id zeroomega
+        --version "$${VERSION}"
+        --description "自用定制版（soldier-cv/ZeroOmega custom_main，基线 v3.5.2）：iOS 风格主题、popup 全局/当前分区、子域级临时规则、WebDAV 自动备份恢复。官方商店没有此版本，必须用「解压 + 开发者模式」加载。"
+      - ls -la /res/zeroomega
+
+  - name: smoke
+    image: docker.1ms.run/library/alpine:3.20
+    commands:
+      # 从分发入口把产物拉回来验一遍（走宿主网关，不用代理）
+      - apk add --no-cache curl unzip >/dev/null
+      - curl -fsS --noproxy '*' -o /tmp/c.zip http://172.17.0.1:8088/res/zeroomega/chromium-release.zip
+      - test -s /tmp/c.zip
+      - unzip -p /tmp/c.zip manifest.json | grep -q '"manifest_version": 3'
+      - unzip -p /tmp/c.zip manifest.json | grep -q '__MSG_manifest_app_name__'
+      - unzip -l /tmp/c.zip | grep -q 'js/background.js'
+      - echo "smoke OK: $$(wc -c < /tmp/c.zip) bytes"

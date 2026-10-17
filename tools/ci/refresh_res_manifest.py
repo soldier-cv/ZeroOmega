@@ -18,6 +18,11 @@ import os
 import tempfile
 
 
+def _now():
+    """首页卡片显示的时间要跟人看到的时区一致（CI 容器默认 UTC，会差 8 小时）。"""
+    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
+
+
 def atomic_dump(obj, path):
     d = os.path.dirname(path) or '.'
     fd, tmp = tempfile.mkstemp(dir=d, prefix='.manifest-', suffix='.tmp')
@@ -51,7 +56,7 @@ def main():
     frag.setdefault('name', a.id)
     frag.setdefault('links', [])
     frag['version'] = a.version
-    frag['updated_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+    frag['updated_at'] = _now().strftime('%Y-%m-%d %H:%M')
     if a.description:
         frag['description'] = a.description
     atomic_dump(frag, frag_path)
@@ -64,7 +69,7 @@ def main():
         except Exception as exc:  # 单个包损坏不影响其余
             print('skip %s: %s' % (f, exc))
     atomic_dump({
-        'generated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'generated_at': _now().strftime('%Y-%m-%d %H:%M'),
         'resources': resources,
     }, os.path.join(a.res, 'manifest.json'))
     print('refreshed: %s' % [r.get('id') for r in resources])

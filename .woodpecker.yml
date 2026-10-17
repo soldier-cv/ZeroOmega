@@ -44,12 +44,17 @@ steps:
     commands:
       # 基线（AGENTS.md §4.3）：omega-pac 142 passing / 1 既有失败（SOCKS5，与改动无关）
       #                          omega-target 必须全绿
+      # 注意：各模块自己的 npm test 走 grunt，而 grunt CLI 只在 omega-build 的
+      # devDependencies 里，故统一用 ../omega-build/node_modules/.bin/grunt 调用；
+      # omega-target 依赖 omega-pac，先 npm run dev 建好 link。
+      - cd omega-build && npm run dev
+      - cd ../omega-pac && ls node_modules/.bin | head -20
       - >-
-        cd omega-pac && (npm test 2>&1 | tee /tmp/pac.log || true);
+        cd ../omega-pac && (TZ=Europe/London ../omega-build/node_modules/.bin/grunt test 2>&1 | tee /tmp/pac.log || true);
         PASS=$$(grep -oE '[0-9]+ passing' /tmp/pac.log | grep -oE '[0-9]+' | head -1);
         echo "omega-pac passing=$${PASS:-none}";
         [ -n "$${PASS:-}" ] && [ "$${PASS}" -ge 142 ] || { echo "omega-pac 通过数低于基线"; exit 1; }
-      - cd ../omega-target && npm test
+      - cd ../omega-target && ../omega-build/node_modules/.bin/grunt test
 
   - name: publish
     image: docker.1ms.run/library/python:3.12-alpine

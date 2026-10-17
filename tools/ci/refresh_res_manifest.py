@@ -25,6 +25,8 @@ def atomic_dump(obj, path):
         with os.fdopen(fd, 'w', encoding='utf-8') as fh:
             json.dump(obj, fh, ensure_ascii=False, indent=2)
             fh.write('\n')
+        # mkstemp 默认 0600，/res 是给 nginx 直发的：不放开读权限会整块 403
+        os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except Exception:
         if os.path.exists(tmp):

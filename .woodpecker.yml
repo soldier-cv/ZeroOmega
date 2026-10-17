@@ -58,7 +58,7 @@ steps:
     commands:
       - set -eu
       - VERSION=$$(cat .release_tag)
-      - echo "落盘版本: $${VERSION}"
+      - echo "落盘版本 $${VERSION}"
       - cp -f dist/chromium-release.zip dist/firefox-release.zip /res/zeroomega/
       - cd /res/zeroomega
       - sha256sum chromium-release.zip > chromium-release.zip.sha256
@@ -80,4 +80,4 @@ steps:
       - unzip -p /tmp/c.zip manifest.json | grep -q '"manifest_version": 3'
       - unzip -p /tmp/c.zip manifest.json | grep -q '__MSG_manifest_app_name__'
       - unzip -l /tmp/c.zip | grep -q 'js/background.js'
-      - echo "smoke OK: $$(wc -c < /tmp/c.zip) bytes"
+      - echo "smoke OK -> $$(wc -c < /tmp/c.zip) bytes"

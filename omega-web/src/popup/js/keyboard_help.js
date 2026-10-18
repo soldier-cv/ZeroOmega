@@ -26,12 +26,12 @@
       span.classList.add('om-keyboard-help');
       span.textContent = key;
       var reference = element.querySelector('.glyphicon');
-      if (reference) {
-        reference.parentNode.insertBefore(span, reference.nextSibling);
-      } else if (element.classList.contains('om-switch')) {
-        // The mode chip is a pill; a leading badge would push the label off
-        // its left padding, so the hint goes after the label instead.
+      // The mode chip has no icon and a leading badge would crowd its label,
+      // so the hint goes after it.
+      if (element.classList.contains('om-switch')) {
         element.appendChild(span);
+      } else if (reference) {
+        reference.parentNode.insertBefore(span, reference.nextSibling);
       } else {
         element.insertBefore(span, element.firstChild);
       }

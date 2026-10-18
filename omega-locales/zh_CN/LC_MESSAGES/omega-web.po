@@ -438,6 +438,36 @@ msgstr "应用内置"
 msgid "options_theme"
 msgstr "主题"
 
+msgid "options_themeBuiltin"
+msgstr "内置主题"
+
+msgid "options_themeBuiltinHelp"
+msgstr "每套主题都提供浅色、深色和跟随系统三种版本。"
+
+msgid "options_themeAppliesEverywhere"
+msgstr "主题同时应用于设置页和插件弹窗。"
+
+msgid "options_themeIos"
+msgstr "iOS"
+
+msgid "options_themeMorandi"
+msgstr "莫兰迪绿"
+
+msgid "options_themeClaude"
+msgstr "Claude Code"
+
+msgid "options_themeOther"
+msgstr "其他主题"
+
+msgid "options_themeOtherHelp"
+msgstr "ZeroOmega 自带的 base16 主题。"
+
+msgid "options_themeSelectPlaceholder"
+msgstr "选择一个主题"
+
+msgid "options_themeCustom"
+msgstr "自定义 CSS"
+
 msgid "options_themeDark"
 msgstr "深色"
 
@@ -1030,62 +1060,35 @@ msgstr "反馈问题"
 msgid "popup_errorLog"
 msgstr "保存错误日志"
 
-msgid "popup_tempRuleScopeSubdomain"
-msgstr "本子域"
-
-msgid "popup_tempRuleScopeDomain"
-msgstr "整个主域"
-
-msgid "popup_tempRuleAppliesTo"
-msgstr "作用于 $DOMAIN$"
-
 msgid "popup_tempRuleScope"
 msgstr "作用域"
 
-msgid "popup_tempRuleApplyProfile"
-msgstr "应用情景模式"
-
-msgid "popup_tempRuleRemove"
-msgstr "撤销该作用域的临时规则"
-
-msgid "popup_tempRuleLabel"
-msgstr "临时规则"
-
-msgid "popup_tempRuleNone"
-msgstr "未设置"
-
-msgid "popup_tempRuleUnavailable"
-msgstr "不可用"
-
 msgid "popup_tempRuleUnavailableHelp"
 msgstr "当前全局情景模式不支持临时规则。切换到自动切换等情景模式后即可使用。"
-
-msgid "popup_tempRuleHelp"
-msgstr "临时规则仅在本浏览器会话中生效，优先于全局情景模式。"
-
-msgid "popup_tempRuleSystemGlobalOnly"
-msgstr "仅全局"
-
-msgid "popup_tempRuleSystemGlobalOnlyHelp"
-msgstr "系统代理不能用于当前页（浏览器 PAC 限制）。切回「全局」即可选择。"
-
-msgid "popup_sectionPage"
-msgstr "本页路由"
-
-msgid "popup_sectionProfiles"
-msgstr "全局情景模式"
-
-msgid "popup_current"
-msgstr "当前"
 
 msgid "popup_modeGlobal"
 msgstr "全局"
 
 msgid "popup_modePage"
-msgstr "当前"
+msgstr "本页"
 
 msgid "popup_modeHelp"
-msgstr "全局对所有标签生效。当前只作用于上方这个站点，浏览器重启后失效。"
+msgstr "点击切换：全局对所有标签页生效；本页只对上方站点生效，浏览器重启后自动恢复。"
+
+msgid "popup_globalProfiles"
+msgstr "全局情景模式"
+
+msgid "popup_pageProfilesFor"
+msgstr "$DOMAIN$ 的情景模式"
+
+msgid "popup_globalUsing"
+msgstr "所有标签页使用 $PROFILE$"
+
+msgid "popup_pageUsing"
+msgstr "本页使用 $PROFILE$"
+
+msgid "popup_pageNotSet"
+msgstr "在下方选择一个情景模式即可只对本页生效"
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$个资源未加载"

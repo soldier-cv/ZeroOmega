@@ -6,36 +6,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="css/index.css">
 </head>
-<body>
-  <ul class="om-nav">
+<body class="om-popup">
+  <ul class="om-nav" tabindex="-1">
     <li class="om-nav-item om-hidden" id="js-profile-tpl">
       <a href="#" role="button">
         <span class="glyphicon"></span>
         <span class="om-profile-name"></span>
       </a>
     </li>
-    <li class="om-nav-item om-reqinfo om-hidden">
+    <li class="om-reqinfo om-hidden">
       <a href="../popup.html#!requestInfo" id="js-reqinfo" role="button">
         <span class="glyphicon glyphicon-warning-sign"></span>
         <span class="om-reqinfo-text"></span>
       </a>
     </li>
-    <li class="om-section om-hidden" id="js-page-section">
-      <div class="om-card om-page-card">
-        <div class="om-page-head">
-          <span class="glyphicon glyphicon-globe"></span>
-          <span class="om-page-host-text" id="js-page-host"></span>
-          <span class="om-mode" id="js-mode" role="group">
-            <button type="button" class="om-mode-btn" id="js-mode-global"
-              aria-pressed="true"></button>
-            <button type="button" class="om-mode-btn" id="js-mode-page"
-              aria-pressed="false"></button>
-          </span>
-        </div>
-        <div class="om-scope om-hidden" id="js-scope"></div>
+    <li class="om-header" id="js-page-header">
+      <div class="om-header-main">
+        <span class="om-header-icon glyphicon glyphicon-globe"></span>
+        <span class="om-header-text">
+          <span class="om-header-title" id="js-page-host"></span>
+          <span class="om-header-sub" id="js-page-sub"></span>
+        </span>
+        <button type="button" class="om-switch" id="js-mode-toggle"
+          aria-pressed="false">
+          <span class="om-switch-label" id="js-mode-toggle-label"></span>
+        </button>
       </div>
+      <div class="om-scope om-hidden" id="js-scope"></div>
     </li>
     <li class="om-section">
+      <div class="om-section-title" id="js-profiles-caption"></div>
       <div class="om-card" id="js-profiles-card">
         <div class="om-nav-item">
           <a href="#" id="js-direct" role="button">
@@ -49,7 +49,6 @@
             <span class="om-profile-name"></span>
           </a>
         </div>
-        <div class="om-divider" id="js-profiles-end"></div>
         <div class="om-nav-item om-nav-addrule">
           <a href="../popup.html#!addRule" id="js-addrule" role="button">
             <span class="glyphicon glyphicon-plus"></span>
@@ -58,12 +57,15 @@
         </div>
       </div>
     </li>
-    <li class="om-divider"></li>
-    <li class="om-nav-item">
-      <a href="../options.html" target="_blank" id="js-option" role="button">
-        <span class="glyphicon glyphicon-wrench"></span>
-        <span id="js-option-label"></span>
-      </a>
+    <li class="om-section">
+      <div class="om-card">
+        <div class="om-nav-item om-option-row">
+          <a href="../options.html" target="_blank" id="js-option" role="button">
+            <span class="glyphicon glyphicon-wrench"></span>
+            <span id="js-option-label"></span>
+          </a>
+        </div>
+      </div>
     </li>
   </ul>
   <script src="../../lib/zero-dependencies/iframeResizer/iframeResizer.contentWindow.min.js"></script>

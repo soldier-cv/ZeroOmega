@@ -23,18 +23,21 @@
     'RuleListProfile': 3000,
   };
 
-  // 'global': the list picks the profile for every tab.
-  // 'page': the same list picks a temp rule for this host (or its domain).
+  // 'global': the list applies to every tab. 'page': the list applies to the
+  // site shown in the header only, as a temp rule.
   OmegaPopup.mode = 'global';
-  OmegaPopup.pageScope = null;
   OmegaPopup.pageScopes = [];
+  OmegaPopup.pageScope = null;
+  // One route for the page, no matter which scope it is written to, so that
+  // switching between subdomain and domain keeps the chosen profile.
+  OmegaPopup.pageRoute = null;
 
   $script.ready('om-state', updateMenuByState);
   $script.ready('om-page-info', updateMenuByPageInfo);
   $script.ready(['om-state', 'om-page-info'], updateMenuByStateAndPageInfo);
 
-  OmegaPopup.clearPageTempRules = clearPageTempRules;
   OmegaPopup.applyPageProfile = applyPageProfile;
+  OmegaPopup.clearPageTempRules = clearPageTempRules;
 
   return;
 
@@ -51,7 +54,7 @@
     addProfilesItems(state);
     $script.done('om-profile-items');
     updateOtherItems(state);
-    bindModeButtons();
+    bindModeToggle();
   }
 
   function compareProfile(a, b) {
@@ -73,8 +76,7 @@
     var info = OmegaPopup.pageInfo;
     if (info && info.errorCount > 0) {
       document.querySelector('.om-reqinfo').classList.remove('om-hidden');
-      var text = getMessage('popup_requestErrorCount',
-        [info.errorCount]);
+      var text = getMessage('popup_requestErrorCount', [info.errorCount]);
       document.querySelector('.om-reqinfo-text').textContent = text;
     }
   }
@@ -86,30 +88,33 @@
         (!info || !info.errorCount)) {
       showMenuForExternalProfile(state);
     }
-    if (!info || !info.url) return updateOtherItems(null);
+    if (!info || !info.url) {
+      document.getElementById('js-page-header').classList.add('om-hidden');
+      return updateOtherItems(null);
+    }
     renderPageSection(info);
   }
 
   function renderPageSection(info) {
-    var section = document.getElementById('js-page-section');
-    section.classList.remove('om-hidden');
-    var hostText = document.getElementById('js-page-host');
-    hostText.textContent = info.host || info.domain;
-    hostText.parentElement.setAttribute('title', info.url || '');
+    document.getElementById('js-page-header').classList.remove('om-hidden');
+    document.getElementById('js-page-header')
+      .setAttribute('title', info.url || '');
 
-    var rule = tempRuleForPage(info);
     OmegaPopup.pageScopes = pageScopes(info);
+    OmegaPopup.pageRoute = pageRouteFromInfo(info);
     OmegaPopup.pageScope = OmegaPopup.pageScopes[0] || null;
-    if (rule) {
-      OmegaPopup.pageScopes.forEach(function(scopeItem) {
-        if (scopeItem.key === rule.key) OmegaPopup.pageScope = scopeItem;
+    if (OmegaPopup.pageRoute) {
+      OmegaPopup.pageScopes.forEach(function(scope) {
+        if (scope.key === OmegaPopup.pageRoute.key) {
+          OmegaPopup.pageScope = scope;
+        }
       });
     }
     renderScope();
 
-    // Opening the popup on a page that already has a temp rule lands on
-    // "current", so the highlighted row is the one actually in effect.
-    if (rule && pageModeAvailable()) OmegaPopup.mode = 'page';
+    // A page that already has a temp rule opens on "this page", so the
+    // highlighted row is the route that is really in effect.
+    if (OmegaPopup.pageRoute && pageModeAvailable()) OmegaPopup.mode = 'page';
     applyMode();
   }
 
@@ -117,216 +122,15 @@
     var scopes = [];
     if (!info || !info.url) return scopes;
     if (info.host && info.domain && info.host !== info.domain) {
-      scopes.push({
-        key: info.host,
-        profileName: info.tempRuleHostProfileName || null,
-        labelId: 'popup_tempRuleScopeSubdomain',
-      });
+      scopes.push({key: info.host, kind: 'host'});
     }
     if (info.domain) {
-      scopes.push({
-        key: info.domain,
-        profileName: info.tempRuleProfileName || null,
-        labelId: 'popup_tempRuleScopeDomain',
-      });
+      scopes.push({key: info.domain, kind: 'domain'});
     }
     return scopes;
   }
 
-  function tempRuleForPage(info) {
-    if (!info) return null;
-    if (info.host && info.host !== info.domain && info.tempRuleHostProfileName) {
-      return {key: info.host, profileName: info.tempRuleHostProfileName};
-    }
-    if (info.tempRuleProfileName) {
-      return {key: info.domain, profileName: info.tempRuleProfileName};
-    }
-    return null;
-  }
-
-  function pageModeAvailable() {
-    var state = OmegaPopup.state;
-    return !!(state && state.validResultProfiles &&
-      state.validResultProfiles.length);
-  }
-
-  // The scope row only exists in page mode, and only when the host is a
-  // subdomain of the registrable domain (otherwise there is nothing to pick).
-  function renderScope() {
-    var row = document.getElementById('js-scope');
-    var scopes = OmegaPopup.pageScopes;
-    if (!row) return;
-    row.textContent = '';
-    if (!scopes || scopes.length < 2) return;
-
-    var segmented = document.createElement('span');
-    segmented.className = 'om-segmented';
-    segmented.setAttribute('role', 'group');
-    segmented.setAttribute('aria-label', getMessage('popup_tempRuleScope'));
-    scopes.forEach(function(scopeItem) {
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'om-segmented-btn';
-      button.textContent = getMessage(scopeItem.labelId);
-      button.setAttribute('title', scopeItem.key);
-      button.addEventListener('click', function() {
-        if (OmegaPopup.pageScope === scopeItem) return;
-        OmegaPopup.pageScope = scopeItem;
-        updateScopeSelection();
-        refreshActive();
-      });
-      scopeItem.button = button;
-      segmented.appendChild(button);
-    });
-    row.appendChild(segmented);
-    updateScopeSelection();
-  }
-
-  function updateScopeSelection() {
-    var current = OmegaPopup.pageScope;
-    (OmegaPopup.pageScopes || []).forEach(function(scopeItem) {
-      if (!scopeItem.button) return;
-      var selected = scopeItem === current;
-      scopeItem.button.classList.toggle('om-scope-selected', selected);
-      scopeItem.button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
-  }
-
-  function bindModeButtons() {
-    var globalBtn = document.getElementById('js-mode-global');
-    var pageBtn = document.getElementById('js-mode-page');
-    if (globalBtn) {
-      globalBtn.addEventListener('click', function() {
-        setMode('global');
-      });
-    }
-    if (pageBtn) {
-      pageBtn.addEventListener('click', function() {
-        if (pageBtn.disabled) return;
-        setMode('page');
-      });
-    }
-  }
-
-  // Switching to global drops the page override, so the highlighted row and
-  // the routing agree. Switching to page only changes what the next click
-  // writes; it does not invent a temp rule.
-  function setMode(mode) {
-    if (mode === 'page' && !pageModeAvailable()) return;
-    if (mode === OmegaPopup.mode) return;
-    OmegaPopup.mode = mode;
-    if (mode === 'global') clearPageTempRules();
-    applyMode();
-  }
-
-  function applyMode() {
-    var mode = OmegaPopup.mode;
-    var available = pageModeAvailable();
-    var globalBtn = document.getElementById('js-mode-global');
-    var pageBtn = document.getElementById('js-mode-page');
-    var scopeRow = document.getElementById('js-scope');
-    var card = document.getElementById('js-profiles-card');
-
-    var modeGroup = document.getElementById('js-mode');
-    if (modeGroup) modeGroup.setAttribute('title', getMessage('popup_modeHelp'));
-    if (globalBtn) {
-      globalBtn.setAttribute('aria-pressed', mode === 'global' ? 'true' : 'false');
-      globalBtn.classList.toggle('om-mode-selected', mode === 'global');
-    }
-    if (pageBtn) {
-      pageBtn.disabled = !available;
-      pageBtn.classList.toggle('om-disabled', !available);
-      pageBtn.setAttribute('aria-pressed', mode === 'page' ? 'true' : 'false');
-      pageBtn.classList.toggle('om-mode-selected', mode === 'page');
-      pageBtn.setAttribute('title', available ? '' :
-        getMessage('popup_tempRuleUnavailableHelp'));
-    }
-    if (scopeRow) {
-      var showScope = mode === 'page' && !!OmegaPopup.pageScope &&
-        scopeRow.querySelector('.om-segmented');
-      scopeRow.classList.toggle('om-hidden', !showScope);
-    }
-    if (card) card.classList.toggle('om-mode-page', mode === 'page');
-    refreshActive();
-  }
-
-  function activeProfileName() {
-    var state = OmegaPopup.state;
-    if (!state) return null;
-    if (OmegaPopup.mode === 'page') {
-      var scope = OmegaPopup.pageScope;
-      return scope && scope.profileName || null;
-    }
-    if (state.isSystemProfile) return 'system';
-    return state.currentProfileName || null;
-  }
-
-  // One list, two meanings: global mode highlights the global profile, page
-  // mode highlights the temp rule of the selected scope. The system proxy
-  // cannot ride inside a PAC script, so it is only clickable in global mode.
-  function refreshActive() {
-    var state = OmegaPopup.state;
-    if (!state) return;
-    var pageMode = OmegaPopup.mode === 'page';
-    var activeName = activeProfileName();
-    var card = document.getElementById('js-profiles-card');
-    if (!card) return;
-
-    card.querySelectorAll('.om-nav-item').forEach(function(item) {
-      var link = item.querySelector('a');
-      if (!link || !link.id || link.id.indexOf('js-profile-') !== 0 &&
-          link.id !== 'js-direct' && link.id !== 'js-system') {
-        return;
-      }
-      item.classList.remove('om-active', 'om-effective');
-      var mark = link.querySelector('.om-item-mark');
-      if (mark) mark.remove();
-      var note = link.querySelector('.om-item-note');
-      if (note) note.remove();
-      link.classList.remove('om-disabled');
-      if (link.getAttribute('data-om-title')) {
-        link.setAttribute('title', link.getAttribute('data-om-title'));
-      }
-    });
-
-    var systemLink = document.getElementById('js-system');
-    if (systemLink && pageMode) {
-      systemLink.classList.add('om-disabled');
-      if (!systemLink.getAttribute('data-om-title')) {
-        systemLink.setAttribute('data-om-title',
-          systemLink.getAttribute('title') || '');
-      }
-      systemLink.setAttribute('title',
-        getMessage('popup_tempRuleSystemGlobalOnlyHelp'));
-      var note = document.createElement('span');
-      note.className = 'om-item-note';
-      note.textContent = getMessage('popup_tempRuleSystemGlobalOnly');
-      systemLink.appendChild(note);
-    }
-
-    if (!activeName) return;
-    var activeLink = activeName === 'direct' ?
-      document.getElementById('js-direct') :
-      activeName === 'system' ? document.getElementById('js-system') : null;
-    if (!activeLink) {
-      card.querySelectorAll('.om-nav-item').forEach(function(item) {
-        if (item.getAttribute('data-profile') === activeName) {
-          activeLink = item.querySelector('a');
-        }
-      });
-    }
-    if (!activeLink || activeLink.classList.contains('om-disabled')) return;
-    activeLink.parentElement.classList.add(
-      pageMode ? 'om-effective' : 'om-active');
-    if (pageMode) {
-      var check = document.createElement('span');
-      check.className = 'om-item-mark glyphicon glyphicon-ok';
-      activeLink.appendChild(check);
-    }
-  }
-
-  // The temp rules that currently affect the page, most specific first.
-  function pageTempRules() {
+  function pageRuleEntries() {
     var info = OmegaPopup.pageInfo;
     var rules = [];
     if (!info || !info.url) return rules;
@@ -340,49 +144,288 @@
     return rules;
   }
 
-  function rememberScope(key, profileName) {
+  function pageRouteFromInfo(info) {
+    var rules = pageRuleEntries();
+    return rules.length ? rules[0] : null;
+  }
+
+  // Keep the pageInfo copy in step with what was just written, so a second
+  // click on the same row (and a later scope switch) sees the new state
+  // without waiting for the background to answer again.
+  function rememberRule(key, profileName) {
     var info = OmegaPopup.pageInfo;
-    if (info) {
-      if (key === info.host && key !== info.domain) {
-        info.tempRuleHostProfileName = profileName;
-      }
-      if (key === info.domain) info.tempRuleProfileName = profileName;
+    if (!info) return;
+    if (info.host && key === info.host && key !== info.domain) {
+      info.tempRuleHostProfileName = profileName;
     }
+    if (key === info.domain) info.tempRuleProfileName = profileName;
+  }
+
+  function pageModeAvailable() {
+    var state = OmegaPopup.state;
+    return !!(state && state.validResultProfiles &&
+      state.validResultProfiles.length &&
+      OmegaPopup.pageScopes && OmegaPopup.pageScopes.length);
+  }
+
+  // Scope labels are the domain names themselves: the subdomain shows the
+  // full host, the domain shows the registrable domain. One segmented control,
+  // only when the host really is a subdomain.
+  function renderScope() {
+    var row = document.getElementById('js-scope');
+    var scopes = OmegaPopup.pageScopes;
+    if (!row) return;
+    row.textContent = '';
+    if (!scopes || scopes.length < 2) return;
+
+    var segmented = document.createElement('span');
+    segmented.className = 'om-segmented';
+    segmented.setAttribute('role', 'group');
+    segmented.setAttribute('aria-label', getMessage('popup_tempRuleScope'));
+    scopes.forEach(function(scope) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'om-segmented-btn';
+      button.textContent = scope.key;
+      button.setAttribute('title', scope.key);
+      button.addEventListener('click', function() {
+        setPageScope(scope);
+      });
+      scope.button = button;
+      segmented.appendChild(button);
+    });
+    row.appendChild(segmented);
+    updateScopeSelection();
+  }
+
+  function updateScopeSelection() {
+    var current = OmegaPopup.pageScope;
     (OmegaPopup.pageScopes || []).forEach(function(scope) {
-      if (scope.key === key) scope.profileName = profileName;
+      if (!scope.button) return;
+      var selected = scope === current;
+      scope.button.classList.toggle('om-segmented-selected', selected);
+      scope.button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
   }
 
-  // Clear the page-level override and go back to following the global
-  // profile. The popup stays open so the list can reflect the change.
-  function clearPageTempRules() {
-    pageTempRules().forEach(function(rule) {
+  function setPageScope(scope) {
+    if (!scope || OmegaPopup.pageScope === scope) return;
+    OmegaPopup.pageScope = scope;
+    updateScopeSelection();
+    // The route is shared: moving the scope carries the chosen profile along
+    // instead of asking the user to pick it again.
+    var route = OmegaPopup.pageRoute;
+    if (route) writePageRoute(scope.key, route.profileName);
+    applyMode();
+  }
+
+  function writePageRoute(key, profileName) {
+    var rules = pageRuleEntries();
+    var existing = null;
+    rules.forEach(function(rule) {
+      if (rule.key === key) existing = rule;
+    });
+    // Add before deleting so the page never falls back to the global profile
+    // for a moment while the route moves between scopes.
+    // addTempRule toggles, so it is only called when the rule is missing or
+    // points elsewhere; calling it with the same profile would remove it.
+    if (!existing || existing.profileName !== profileName) {
+      if (OmegaPopup.addTempRule) OmegaPopup.addTempRule(key, profileName);
+    }
+    rules.forEach(function(rule) {
+      if (rule.key === key) return;
       if (OmegaPopup.clearTempRule) {
         OmegaPopup.clearTempRule(rule.key, rule.profileName);
       }
-      rememberScope(rule.key, null);
+      rememberRule(rule.key, null);
     });
+    rememberRule(key, profileName);
+    OmegaPopup.pageRoute = {key: key, profileName: profileName};
+  }
+
+  function clearPageTempRules() {
+    pageRuleEntries().forEach(function(rule) {
+      if (OmegaPopup.clearTempRule) {
+        OmegaPopup.clearTempRule(rule.key, rule.profileName);
+      }
+      rememberRule(rule.key, null);
+    });
+    OmegaPopup.pageRoute = null;
+  }
+
+  function bindModeToggle() {
+    var toggle = document.getElementById('js-mode-toggle');
+    if (!toggle) return;
+    toggle.addEventListener('click', function() {
+      setMode(OmegaPopup.mode === 'page' ? 'global' : 'page');
+    });
+  }
+
+  // The toggle only ever shows the state it is in. Switching to the page
+  // view leaves the routing untouched; switching back to global drops the
+  // page override so that the highlighted row is what really applies.
+  function setMode(mode) {
+    if (mode === 'page' && !pageModeAvailable()) return;
+    if (mode === OmegaPopup.mode) return;
+    OmegaPopup.mode = mode;
+    if (mode === 'global') clearPageTempRules();
+    applyMode();
+  }
+
+  function applyMode() {
+    var mode = OmegaPopup.mode;
+    var available = pageModeAvailable();
+    var pageMode = mode === 'page';
+    var toggle = document.getElementById('js-mode-toggle');
+    var scopeRow = document.getElementById('js-scope');
+    var title = document.getElementById('js-page-host');
+    var subtitle = document.getElementById('js-page-sub');
+    var caption = document.getElementById('js-profiles-caption');
+    var info = OmegaPopup.pageInfo;
+    var scope = OmegaPopup.pageScope;
+
+    if (toggle) {
+      var toggleLabel = document.getElementById('js-mode-toggle-label');
+      if (toggleLabel) {
+        toggleLabel.textContent = getMessage(pageMode ?
+          'popup_modePage' : 'popup_modeGlobal');
+      }
+      toggle.disabled = !available;
+      toggle.setAttribute('aria-pressed', pageMode ? 'true' : 'false');
+      toggle.classList.toggle('om-switch-on', pageMode);
+      toggle.classList.toggle('om-disabled', !available);
+      // With a system proxy as the global profile there is no page route to
+      // choose, so the control is left out instead of being a dead chip.
+      toggle.classList.toggle('om-hidden', !available);
+      toggle.setAttribute('title', getMessage(available ?
+        'popup_modeHelp' : 'popup_tempRuleUnavailableHelp'));
+    }
+
+    if (title) {
+      var showDomain = pageMode && scope && scope.kind === 'domain';
+      title.textContent = showDomain ? scope.key :
+        (info && (info.host || info.domain)) || '';
+    }
+
+    if (subtitle) subtitle.textContent = subtitleText();
+
+    if (caption) {
+      caption.textContent = pageMode && scope ?
+        getMessage('popup_pageProfilesFor', [scope.key]) :
+        getMessage('popup_globalProfiles');
+    }
+
+    if (scopeRow) {
+      var showScope = pageMode && scope &&
+        scopeRow.querySelector('.om-segmented');
+      scopeRow.classList.toggle('om-hidden', !showScope);
+    }
+
     refreshActive();
   }
 
-  // Write the chosen profile as the temp rule of the selected scope. A click
-  // on the profile that is already set removes the rule instead. toggle is
-  // omitted on purpose: force-add (1) refuses to replace an existing rule.
+  function profileTitle(name) {
+    if (!name) return '';
+    var text = getMessage('profile_' + name) || name;
+    return text.replace(/^\[|\]$/g, '');
+  }
+
+  function subtitleText() {
+    var state = OmegaPopup.state;
+    if (OmegaPopup.mode === 'page') {
+      var route = OmegaPopup.pageRoute;
+      return route ?
+        getMessage('popup_pageUsing', [profileTitle(route.profileName)]) :
+        getMessage('popup_pageNotSet');
+    }
+    if (!state) return '';
+    if (!state.currentProfileName) {
+      return getMessage('popup_globalUsing',
+        [getMessage('popup_externalProfile')]);
+    }
+    if (state.isSystemProfile) {
+      return getMessage('popup_globalUsing', [profileTitle('system')]);
+    }
+    return getMessage('popup_globalUsing',
+      [profileTitle(state.currentProfileName)]);
+  }
+
+  function refreshActive() {
+    var state = OmegaPopup.state;
+    if (!state) return;
+    var card = document.getElementById('js-profiles-card');
+    if (!card) return;
+    var pageMode = OmegaPopup.mode === 'page';
+    var activeName = activeProfileName(state, pageMode);
+
+    card.querySelectorAll('.om-nav-item[data-profile]').forEach(function(item) {
+      item.classList.remove('om-selected');
+      var mark = item.querySelector('.om-item-mark');
+      if (mark) mark.remove();
+    });
+
+    // The chevron edits the switch profile's default result, which is a global
+    // change; in page mode it would silently mix the two scopes again.
+    card.classList.toggle('om-page-mode', pageMode);
+
+    // The system proxy cannot ride inside a PAC script, so it is not offered
+    // as a page route at all instead of being shown disabled.
+    var systemItem = document.getElementById('js-system').parentElement;
+    systemItem.classList.toggle('om-hidden', pageMode);
+
+    // "Add condition" edits the global profile's rules, not the page route,
+    // so it is only offered while the list is about the global profile.
+    var addRuleItem = document.querySelector('.om-nav-addrule');
+    addRuleItem.classList.toggle('om-hidden',
+      pageMode || !OmegaPopup.showAddRule);
+
+    if (activeName == null) return;
+    var activeItem = null;
+    card.querySelectorAll('.om-nav-item[data-profile]').forEach(function(item) {
+      if (item.getAttribute('data-profile') === activeName) activeItem = item;
+    });
+    if (activeItem) {
+      activeItem.classList.add('om-selected');
+      var check = document.createElement('span');
+      check.className = 'om-item-mark glyphicon glyphicon-ok';
+      activeItem.querySelector('a').appendChild(check);
+    }
+  }
+
+  // In global mode an imported external profile takes over the system row, so
+  // it is the external row that is marked as in effect.
+  function activeProfileName(state, pageMode) {
+    if (pageMode) {
+      return OmegaPopup.pageRoute && OmegaPopup.pageRoute.profileName;
+    }
+    if (state.showExternalProfile && state.externalProfile &&
+        state.currentProfileName === '') {
+      return '';
+    }
+    return state.isSystemProfile ? 'system' : state.currentProfileName;
+  }
+
+  // A click on a list row in page mode writes that profile as the page route.
+  // Clicking the row already in effect does nothing; the way back to the
+  // global profile is the mode toggle, which clears the page route.
   function applyPageProfile(profileName) {
     var scope = OmegaPopup.pageScope;
     if (!scope || profileName === 'system') return;
-    var removing = scope.profileName === profileName;
-    if (OmegaPopup.addTempRule) {
-      OmegaPopup.addTempRule(scope.key, profileName);
+    var route = OmegaPopup.pageRoute;
+    if (route && route.key === scope.key && route.profileName === profileName) {
+      return;
     }
-    rememberScope(scope.key, removing ? null : profileName);
-    refreshActive();
+    writePageRoute(scope.key, profileName);
+    applyMode();
   }
 
   function showMenuForExternalProfile(state) {
     var profile = state.externalProfile;
     profile.name = getMessage('popup_externalProfile');
     var profileDisp = createMenuItemForProfile(profile);
+    // The empty name identifies the external row; refreshActive marks it when
+    // the browser is controlled by an imported profile.
+    profileDisp.setAttribute('data-profile', '');
 
     var link = profileDisp.querySelector('a');
     link.id = 'js-external';
@@ -390,29 +433,18 @@
       location.href = '../popup.html#!external';
     });
 
-    if (state.currentProfileName === '') {
-      profileDisp.classList.add('om-effective');
-    }
-
-    var profilesEnd = document.getElementById('js-profiles-end');
-    profilesEnd.parentElement.insertBefore(profileDisp, profilesEnd);
+    var card = document.getElementById('js-profiles-card');
+    card.insertBefore(profileDisp, card.querySelector('.om-nav-addrule'));
+    applyMode();
   }
 
   function updateOtherItems(state) {
     var hasValidResults = state && state.validResultProfiles &&
       state.validResultProfiles.length;
-    var showAddRule = hasValidResults && state.currentProfileCanAddRule;
-    document.querySelector('.om-nav-addrule')
-      .classList.toggle('om-hidden', !showAddRule);
-    document.getElementById('js-profiles-end')
-      .classList.toggle('om-hidden', !showAddRule);
-    if (!showAddRule) document.getElementById('js-addrule').href = '#';
+    OmegaPopup.showAddRule = !!(hasValidResults &&
+      state.currentProfileCanAddRule);
+    if (!OmegaPopup.showAddRule) document.getElementById('js-addrule').href = '#';
     applyMode();
-  }
-
-  function colorizeIcon(targetEl, color) {
-    var icon = targetEl.querySelector('.glyphicon');
-    if (icon && color) icon.style.color = color;
   }
 
   function addProfilesItems(state) {
@@ -422,13 +454,13 @@
     var directProfile = state.availableProfiles['+direct'];
     directProfileDisp.parentElement.setAttribute('data-profile', 'direct');
     systemProfileDisp.parentElement.setAttribute('data-profile', 'system');
-    colorizeIcon(systemProfileDisp, systemProfile.color);
+    // The built-in colours are fixed (#000, #aaa) and disappear on a dark
+    // palette, so these two icons take their colour from the theme instead.
     systemProfileDisp.setAttribute('title', systemProfile.desc);
-    colorizeIcon(directProfileDisp, directProfile.color);
     directProfileDisp.setAttribute('title', directProfile.desc);
 
-    var profilesEnd = document.getElementById('js-profiles-end');
-    var profilesContainer = profilesEnd.parentElement;
+    var card = document.getElementById('js-profiles-card');
+    var addRuleItem = card.querySelector('.om-nav-addrule');
     var profileCount = 0;
     var charCodeUnderscore = '_'.charCodeAt(0);
     var profiles = Object.keys(state.availableProfiles).map(function(key) {
@@ -469,7 +501,7 @@
         link.appendChild(toggle);
       }
 
-      profilesContainer.insertBefore(profileDisp, profilesEnd);
+      card.insertBefore(profileDisp, addRuleItem);
     });
   }
 
@@ -533,7 +565,7 @@
         });
       });
       if (resultProfile.name === profile.currentProfileName) {
-        li.classList.add('om-active');
+        li.classList.add('om-selected');
       }
       ul.appendChild(li);
     });

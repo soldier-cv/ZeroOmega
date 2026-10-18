@@ -1,8 +1,9 @@
 :root {
   color-scheme: light;
+    --om-theme: ios-auto;
   --base00: #ffffff;
   --base01: #f2f2f7;
-  --base02: #d1d1d6;
+  --base02: #e5e5ea;
   --base03: #8e8e93;
   --base04: #3c3c43;
   --base05: #1c1c1e;
@@ -16,13 +17,17 @@
   --base0D: #5856d6;
   --base0E: #ff9500;
   --base0F: #a2845e;
+  --softAccent: rgba(0, 122, 255, .1);
+  --separatorColor: rgba(60, 60, 67, .13);
 }
+
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
+    --om-theme: ios-auto;
     --base00: #1c1c1e;
-    --base01: #2c2c2e;
-    --base02: #3a3a3c;
+    --base01: #000000;
+    --base02: #38383a;
     --base03: #98989d;
     --base04: #c7c7cc;
     --base05: #ffffff;
@@ -36,5 +41,7 @@
     --base0D: #5e5ce6;
     --base0E: #ff9f0a;
     --base0F: #ac8e68;
+    --softAccent: rgba(10, 132, 255, .18);
+    --separatorColor: rgba(84, 84, 88, .6);
   }
 }

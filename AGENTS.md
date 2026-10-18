@@ -101,7 +101,7 @@
 - **验证方式（本地预览 harness）**：开关 ON/OFF 就地切换（调用日志确认 `addTempRule(postest.findfine.com, direct, -1)`）；点全局行 → `addTempRule(..., -1)` + `applyProfile(FIDDLER)`；下拉列表与全局列表顺序一致；系统代理禁用行（「仅全局」）；主域规则场景（`整个主域` 作用域下 ✓ + 撤销行）；单层域名（无作用域分段控件）；系统代理为 base（开关隐藏 + “不可用”）；`npm run build` 通过、产物与源逐字节一致。
 - **被 R9 取代（2026-10-16）**：实机后华总认为「本页覆盖全局」文案绕、两套列表重复。交互改为顶部「全局 / 当前」分段按钮 + 一套列表，见 R9。本条保留作决策记录，不再按此实现。
 
-### R9. popup 简化为「全局 / 当前」一个按钮 + 一套列表 — 状态：**本地预览已核验，待实机确认**（2026-10-16）
+### R9. popup 简化为「全局 / 当前」一个按钮 + 一套列表 — 状态：**已被 R10 取代**（2026-10-16；实现记录保留）
 
 - **背景**：R5 实机截图（`1panel.codec.top`）里同时出现「本页覆盖全局」开关、「情景模式」行、「作用域」分段、「应用情景模式」列表和「全局情景模式」列表。华总要求收成一个按钮：模式 = 全局 / 当前，点一下切换；切到全局隐藏作用域，切到当前隐藏“全局”这一套重复列表。
 - **已确认决策（D11）**：
@@ -125,6 +125,30 @@
   - 界面：本地静态预览（临时目录，不入库；直接以构建产物供服务）逐场景截图 6 张——全局无规则 / 当前 + 子域作用域 / 仅主域规则（作用域自动对齐「整个主域」）/ 单层域名无作用域 / 系统代理「当前」禁用 +「仅全局」/ 资源未加载警告。
   - 交互（预览页用桩驱动点击、读回调用序列）：当前模式点 profile → `addTempRule(host, name)`（再点同项 = 撤销）；全局模式点 profile → `applyProfile(name)`；切到「全局」→ 先 `addTempRule(key, name, -1)` 清本页规则、再应用全局；系统代理为 base 时「当前」按钮点不动（保持全局）；单层域名写入的 host 规则即主域规则。
 - **待实机**：重载扩展确认界面与文案（本地已逐张核验；`_locales` 需重载扩展才生效）。
+- **被 R10 取代（2026-10-18）**：实机后华总要求把「全局 / 当前」两个并排分段按钮收成**一个状态胶囊**（只显示当前态、点击切换），并去掉「仅全局」旁注；子域与主域改为共用一条路由。见 R10。
+
+### R10. popup 交互收敛 + 三套内置主题（iOS / 莫兰迪绿 / Claude Code） — 状态：**构建与本地预览已核验，待实机确认**（2026-10-18）
+
+- **背景**：R9 实机后华总提出四点：①「全局 / 当前」不该是两个并排的分段按钮，应是一个按钮、显示当前状态、点一下就切换；②「仅全局」这类旁注没有意义，选「当前」时不该再和全局纠缠（包括系统代理行）；③子域与主域必须**共用同一条路由**，切换作用域不应要求再选一次 profile；④选子域要显示完整主机名（`cn.bing.com`），选主域只显示主域名（`bing.com`）。主题方面：现有蓝色刺眼、配色不协调，要求三套主题（iOS / 莫兰迪绿 / Claude Code）各含浅色 / 深色 / 跟随系统，并且**主题同时作用于设置页与 popup**。
+- **已确认决策（D13）**：
+  - 顶部页卡片 = 「图标 + 站点名 + 一个模式胶囊（`全局` / `本页`）+ 副标题说明当前实际路由」；胶囊只显示当前状态，点击切换。
+  - 切到「全局」**清除本页临时规则**（host + 主域），保证高亮行与实际路由永远一致；切到「本页」不改动已有规则，只改变下一次点选的含义。
+  - 列表始终只有一套，标题随模式变化：`全局情景模式` / `<作用域域名> 的情景模式`。
+  - **本页模式隐藏系统代理行与「添加条件」行**（PAC 不能包含系统代理；「添加条件」改的是全局 profile 的规则），不再用灰显 + 「仅全局」旁注。
+  - **路由共用**：`OmegaPopup.pageRoute = {key, profileName}` 只有一条；切换作用域时把同一条规则搬到新 key（先加新、再删旧），高亮不变；在本页模式点已生效的行不再撤销（回全局唯一入口是模式胶囊）。
+  - 作用域分段控件的按钮文字**就是域名本身**（`cn.bing.com` / `bing.com`），仅子域时出现；页标题随作用域切换为完整 host 或主域名。
+  - 主题 = **调色板 × 浅色 / 深色 / 跟随系统**：`ios-{light,dark,auto}`、`morandi-{...}`、`claude-{...}`（`omega-web/lib/themes/`），调色板内以 `--om-theme: <key>` 标记当前主题（auto 的两个色块各写一份），设置页据此回读；删除旧的 `default-*`（其角色由 `ios-*` 取代）。
+  - popup 全部改用主题变量（`--base*` + `--softAccent` + `--separatorColor`），不再硬编码颜色；`base.css` 删除会与新 popup 冲突的旧 `.om-nav-item.om-active` / hover / `.om-edit-toggle` 覆盖。
+- **实现（2026-10-18）**：
+  - popup：`index.html` 重写为「页头卡片 + 一套卡片列表 + 选项卡片」，`profiles.js` 重写模式 / 作用域 / 路由 / 高亮逻辑（`applyPageProfile` / `clearPageTempRules` / `writePageRoute` / `activeProfileName`），`css/index.css` 重写为 iOS 分组列表（圆角卡片、内缩分隔线、选中行浅色底 + 对勾），`js/index.js` 写临时规则后不再关闭 popup，`js/i18n.js` / `keyboard.js` / `keyboard_help.js` 跟进新 id（`js-mode-toggle`），`keyboard.js` 的快捷键不再点击被当前模式隐藏的行。
+  - 主题：`master.coffee` 改成 `builtinThemes`（三套 × 三种变体）+ `otherThemes`（base16）+ `isCurrentTheme`（读 `--om-theme` 标记）+ 下拉回填；`partials/theme.jade` 改为三张主题卡片 + 其他主题下拉 + 自定义 CSS；`options.less` 补 `.om-theme-card*` 样式；`variable.css` 把 `--softAccent` / `--separatorColor` 的兜底改为跟随表面色，使 base16 主题也能正常显示选中态。
+  - 迁移：`background.coffee` 中旧的「灰聚焦环」快照修复改为——旧 iOS 快照整体换成对应 `ios-*`，其它主题只追加新的 `base.css`（不动用户选的配色）；带 `--om-theme` 标记的快照不动。
+  - i18n（`en_US` 源 + `zh_CN` 同步）：新增 `options_themeBuiltin*` / `options_themeIos|Morandi|Claude|Other|Custom|AppliesEverywhere|SelectPlaceholder`、`popup_globalProfiles` / `popup_pageProfilesFor` / `popup_globalUsing` / `popup_pageUsing` / `popup_pageNotSet`；删除 R4/R9 遗留的 `popup_tempRuleScopeSubdomain|Domain|AppliesTo|ApplyProfile|Remove|Label|None|Unavailable|Help|SystemGlobalOnly*`、`popup_sectionPage|Profiles`、`popup_current`。
+- **验证（2026-10-18）**：
+  - `npm run build` 全绿（coffeelint 全过，jade 仅 2 条既有 warning）；omega-target 6 passing / 0 failing。
+  - 本地预览（临时目录 harness：桩 `chrome.*` + 直接以构建产物供服务）截图 18 个场景：全局浅/深、本页（子域 / 主域 / 单层域名）、三套主题浅/深、无主题、base16、资源未加载、系统代理为 base、外部情景模式、无「添加条件」、键盘帮助。交互用点击顺序回读调用序列，确认「切到本页 → 选 FIDDLER → 切主域（规则搬到 `bing.com`，高亮不变）→ 选 VPN（先加新再删旧）→ 切回全局（清两条规则）」。
+  - 设置页：以构建产物搭主题预览板渲染三套主题浅 / 深，卡片色板、选中按钮、下拉、自定义 CSS 区域配色自洽。
+- **待实机**：重载扩展确认 popup 排版与三套主题在设置页 / 弹窗中的一致性（`_locales` 改动需重载扩展）。
 
 ### R2. （已澄清，无需实现）直连 / 系统代理 的使用习惯 — 状态：**关闭（2026-10-16）**
 
@@ -243,7 +267,7 @@ cd omega-target && npm test
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则**：隐藏的 `_tempProfile`（SwitchProfile）+ `chrome.storage.session`（**浏览器重启即失效**）；入口有 popup 漏斗（支持“当前子域 / 整个主域”作用域切换，默认当前子域）、请求信息详情、网络监测页、临时规则管理器；临时规则按域名层级排序（子域在前，首条命中优先）；`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）`。
-- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部一行：站点 + 「全局 / 当前」分段按钮，下面**同一套**情景模式列表。按钮是「本页跟随谁」的开关：切到「全局」= 跟随全局并清除本页临时规则，点选应用该全局 profile；切到「当前」= 用本页独立情景模式，点选写入所选作用域的临时规则（再点同项撤销），子域时才出现「本子域 / 整个主域」，系统代理在此模式下禁用并标注「仅全局」；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
+- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊（点击切换，只显示当前态）+ 副标题写明实际路由，下面**同一套**情景模式列表。切到「全局」= 跟随全局并清除本页临时规则，点选应用该全局 profile；切到「本页」= 用本页独立情景模式，点选写入**当前作用域**的临时规则，子域与主域共用同一条路由（切换作用域把规则搬到新 key，不用重选），系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
 
 ## 5. 决策日志（Decision Log）
@@ -262,3 +286,4 @@ cd omega-target && npm test
 | D8 | 设置页精简：条件类型**固定为高级列表**（删开关）；快速切换**端到端移除**；删「导出旧版规则列表」 | 保留开关 / 仅隐藏 UI / 保留快速切换 | 自用场景不需要“基础/高级条件”双模式与图标循环切换；端到端删除可去掉 context menu、storage 字段与迁移代码 |
 | D9 | WebDAV 备份 = **单份最新 + 自动备份开关 + 手动恢复**；复用 `.bak` 格式与既有 WebDAV 目录约定 | 多版本历史 / 保留 Gist 同步 | 个人备份点单一可信、实现简单；复用既有客户端布局与恢复链路；Gist / 内置同步对外依赖不稳定且不再需要 |
 | D10 | 三套内置主题改造为 **iOS system 色系** + `theme.jade` 文案 i18n + `base.css` 打磨 | 新增一套主题 / 全量重写样式体系 | 不改结构、风险低；内置主题覆盖浅色 / 深色 / 自动三态即可；避免动他人主题列表 |
+| D13 | popup：**一个状态胶囊**（只显示 `全局` / `本页`，点击切换）+ 一套列表；切到「全局」清本页临时规则；本页模式隐藏系统代理与「添加条件」；子域 / 主域**共用一条路由**（切作用域搬规则，不重选）；页标题随作用域显示完整 host 或主域名。主题：**三套调色板 × 浅 / 深 / 跟随系统**（`ios-*` / `morandi-*` / `claude-*`），popup 全部改用主题变量 | 保留 R9 的双分段按钮；保留「仅全局」旁注；两套独立的作用域规则；继续只用 `default-*` 一套 iOS 主题 | R9 实机后华总要求「一个按钮、点击切换」，旁注与并列状态制造歧义；两条独立规则会逼用户重选 profile，而实际场景只是换作用域；主题分散在两套界面才导致“设置页好看、弹窗刺眼”，统一变量后一处改动两处生效 |

@@ -234,33 +234,40 @@ zeroBackground = (zeroStorage, opts) ->
 
   options.initWithOptions(null, startupCheck)
 
-  # The built-in themes shipped a first pass whose interactive states came out
-  # gray (text selection, input focus ring, button hover outline) — that is the
-  # "iOS colors look off" report. The selectable theme is a snapshot stored in
-  # the options, so refresh it once when the old gray focus ring is present.
-  # Rebuild with the same palette the snapshot used; anything hand-edited, and
-  # every other theme, is left alone.
+  # The first iOS theme pass shipped interactive states in gray (text selection,
+  # input focus ring, button hover outline) and stored CSS snapshots without a
+  # theme marker. Rebuild those snapshots from the current built-in files so
+  # the options page can show which palette is active. A snapshot of any other
+  # palette only gets the new base.css appended, which fixes the gray states
+  # without changing the colours the user picked.
   do ->
     OLD_FOCUS_RING = '0003pxvar(--selectionBackground)'
     options.ready.then(->
       css = options._options?['-customCss']
       return unless css
       compact = css.replace(/\s/g, '')
+      return if compact.indexOf('--om-theme') >= 0
       return if compact.indexOf(OLD_FOCUS_RING) < 0
-      theme = if compact.indexOf('prefers-color-scheme') >= 0
-        'default-auto.css'
-      else if compact.indexOf('--base00:#1c1c1e') >= 0
-        'default-dark.css'
-      else
-        'default-light.css'
+      oldIos = compact.indexOf('--base02:#d1d1d6') >= 0 or
+        compact.indexOf('--base02:#3a3a3c') >= 0
       themeUrl = chrome.runtime.getURL('lib/themes/')
-      Promise.all(['variable.css', theme, 'base.css'].map((name) ->
+      getThemeFiles = (name) ->
         fetch(themeUrl + name).then((res) -> res.text())
-      )).then((parts) ->
-        delta = {}
-        delta['-customCss'] = [css, parts.join('\n')]
-        options.patch(delta)
-      )
+      if oldIos
+        theme = if compact.indexOf('prefers-color-scheme') >= 0
+          'ios-auto.css'
+        else if compact.indexOf('--base00:#1c1c1e') >= 0
+          'ios-dark.css'
+        else
+          'ios-light.css'
+        Promise.all(['variable.css', theme, 'base.css'].map(getThemeFiles)
+        ).then((parts) ->
+          options.patch({'-customCss': parts.join('\n')})
+        )
+      else
+        getThemeFiles('base.css').then((baseCss) ->
+          options.patch({'-customCss': css + '\n' + baseCss})
+        )
     ).catch((err) -> Log.error(err))
 
   # WebDAV options backup. Methods are attached to the options instance so

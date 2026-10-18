@@ -323,14 +323,56 @@ angular.module('omega').controller 'MasterCtrl', ($scope, $rootScope, $window,
   $scope.downloadIntervalI18n = (interval) ->
     "options_downloadInterval_" + (if interval < 0 then "never" else interval)
 
-  themeItems = []
+  # Three built-in palettes, each with a light, dark and system-following
+  # variant. The keys are the CSS files copied into lib/themes.
+  builtinThemeDefs = [
+    {
+      name: 'ios'
+      i18n: 'options_themeIos'
+      colors: ['#007aff', '#34c759', '#ff9500', '#f2f2f7']
+    }
+    {
+      name: 'morandi'
+      i18n: 'options_themeMorandi'
+      colors: ['#5f7d66', '#7a9a74', '#b08a4f', '#f1f0ea']
+    }
+    {
+      name: 'claude'
+      i18n: 'options_themeClaude'
+      colors: ['#c15f3c', '#6b8f5e', '#a87b32', '#f0eee6']
+    }
+  ]
+  variantSuffixes = [
+    {suffix: '-light', i18n: 'options_themeLight'}
+    {suffix: '-dark', i18n: 'options_themeDark'}
+    {suffix: '-auto', i18n: 'options_themeAuto'}
+  ]
+  $scope.builtinThemes = for def in builtinThemeDefs
+    variants: for variant in variantSuffixes
+      key: def.name + variant.suffix
+      i18n: variant.i18n
+    i18n: def.i18n
+    colors: def.colors
+
+  otherThemeItems = []
   for key, val of themes
     val.key = 'others/base16-' + key
     val.displayName = '(' +
     (if val.dark then '🌚' else '🌞') + ')    ' + key
-    themeItems.push(val)
-  $scope.themeItems = themeItems
-  $scope.selectedItem = {data: null}
+    otherThemeItems.push(val)
+  $scope.otherThemes = otherThemeItems
+  $scope.selectedOtherTheme = ''
+
+  # Keep the dropdown in step with the stored snapshot so an active base16
+  # theme stays visible after a reload.
+  syncOtherThemeSelection = ->
+    css = $scope.options?['-customCss'] or ''
+    for item in otherThemeItems
+      if css.indexOf("--om-theme: #{item.key}") >= 0
+        $scope.selectedOtherTheme = item.key
+        return
+    $scope.selectedOtherTheme = ''
+  $scope.$watch 'options["-customCss"]', syncOtherThemeSelection
 
   changeTheme = (themeKey) ->
     unless themeKey
@@ -353,7 +395,11 @@ angular.module('omega').controller 'MasterCtrl', ($scope, $rootScope, $window,
     ).then((result) ->
       baseCss = result
     ).then( ->
-      $scope.customCss =  [variableCss, themeCss, baseCss].join('\n')
+      # A single marker makes the active theme recognisable for every palette,
+      # including the base16 files that carry none of their own.
+      marker = if themeCss.indexOf('--om-theme') >= 0 then '' else
+        "\n:root { --om-theme: #{themeKey}; }"
+      $scope.customCss = [variableCss, themeCss, baseCss].join('\n') + marker
       $scope.options['-customCss'] = $scope.customCss
       $scope.$applyAsync()
     ).catch(->
@@ -362,9 +408,20 @@ angular.module('omega').controller 'MasterCtrl', ($scope, $rootScope, $window,
       $scope.$applyAsync()
     )
 
-  $scope.selectTheme = ->
-    themeItem = $scope.selectedItem or {data: {}}
-    changeTheme(themeItem.data.key)
+  $scope.selectOtherTheme = ->
+    # Picking the placeholder again leaves the theme that is in effect alone;
+    # clearing has its own button below.
+    unless $scope.selectedOtherTheme
+      syncOtherThemeSelection()
+      return
+    changeTheme($scope.selectedOtherTheme)
+
+  # The stored theme is a CSS snapshot, not a key, so the active variant is
+  # read back from the marker line each built-in palette file carries.
+  $scope.isCurrentTheme = (key) ->
+    css = $scope.options?['-customCss'] or ''
+    return false unless css
+    css.indexOf("--om-theme: #{key}") >= 0
   $scope.changeTheme = changeTheme
   $scope.openShortcutConfig = omegaTarget.openShortcutConfig.bind(omegaTarget)
 

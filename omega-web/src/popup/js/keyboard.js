@@ -37,6 +37,10 @@
       {acceptNode: tabbableElementsOnly}
     );
 
+    // Keyboard users need a starting point for j/k and the arrow keys; the
+    // nav root keeps the selected row free of a focus ring.
+    walker.root.focus();
+
     window.addEventListener('keydown', function(e) {
       var handler = keyHandler[e.keyCode];
       if (!handler) console.log(e.keyCode);
@@ -47,11 +51,6 @@
       } else {
         handler();
       }
-    });
-
-    $script.ready('om-profile-items', function() {
-      var activeNavLink = document.querySelector('.om-nav-item.om-active > a');
-      if (activeNavLink) activeNavLink.focus();
     });
   }
 
@@ -128,17 +127,14 @@
 
   function clickById(id) {
     var element = document.getElementById(id);
-    if (element) element.click();
+    // Rows hidden by the current mode must not be reachable by shortcut
+    // either: the system proxy and "Add condition" only exist in global mode.
+    if (element && !element.closest('.om-hidden')) element.click();
   }
 
   function togglePageMode() {
-    var pageBtn = document.getElementById('js-mode-page');
-    var globalBtn = document.getElementById('js-mode-global');
-    if (pageBtn && pageBtn.getAttribute('aria-pressed') === 'true') {
-      if (globalBtn) globalBtn.click();
-    } else if (pageBtn && !pageBtn.disabled) {
-      pageBtn.click();
-    }
+    var toggle = document.getElementById('js-mode-toggle');
+    if (toggle && !toggle.disabled) toggle.click();
   }
 
 })();

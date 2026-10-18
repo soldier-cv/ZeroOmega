@@ -80,7 +80,9 @@
 
   function addTempRule(domain, profileName, toggle) {
     $script.ready('om-target', function() {
-      OmegaTargetPopup.addTempRule(domain, profileName, toggle, closePopup);
+      // The popup stays open: the page route is applied immediately and the
+      // header reports it, so the user can switch scope or profile again.
+      OmegaTargetPopup.addTempRule(domain, profileName, toggle);
     });
   }
 })();

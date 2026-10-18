@@ -1,0 +1,22 @@
+:root {
+  color-scheme: dark;
+  --om-theme: claude-dark;
+  --base00: #262624;
+  --base01: #1f1e1d;
+  --base02: #3a3936;
+  --base03: #8f897e;
+  --base04: #c9c4b8;
+  --base05: #faf9f5;
+  --base06: #ffffff;
+  --base07: #ffffff;
+  --base08: #e08b7d;
+  --base09: #e39a72;
+  --base0A: #e39a72;
+  --base0B: #9cbd8e;
+  --base0C: #86b7b4;
+  --base0D: #aaa8d6;
+  --base0E: #d7ad6b;
+  --base0F: #c6a58f;
+  --softAccent: rgba(227, 154, 114, .16);
+  --separatorColor: rgba(201, 196, 184, .2);
+}

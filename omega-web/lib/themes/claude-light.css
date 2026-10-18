@@ -1,0 +1,22 @@
+:root {
+  color-scheme: light;
+  --om-theme: claude-light;
+  --base00: #faf9f5;
+  --base01: #f0eee6;
+  --base02: #e4e1d6;
+  --base03: #8a857a;
+  --base04: #55514a;
+  --base05: #2b2a27;
+  --base06: #1f1e1d;
+  --base07: #141413;
+  --base08: #bf4d43;
+  --base09: #c15f3c;
+  --base0A: #c15f3c;
+  --base0B: #6b8f5e;
+  --base0C: #5f8f8c;
+  --base0D: #7b79a8;
+  --base0E: #a87b32;
+  --base0F: #9a7359;
+  --softAccent: rgba(193, 95, 60, .12);
+  --separatorColor: rgba(85, 81, 74, .14);
+}

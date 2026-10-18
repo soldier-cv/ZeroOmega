@@ -6,22 +6,30 @@
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  */
 
-/* Layout */
+/* The theme is injected as a CSS snapshot after this file, so every colour
+ * here comes from the theme variables (with iOS defaults as fallback) and the
+ * popup-specific rules are scoped to .om-popup to win over base.css. */
 
-html, body {
+html {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Microsoft YaHei",
     sans-serif;
-  font-size: 13px;
-  padding: 0;
-  margin: 0;
+  font-size: 14px;
 }
 
-body {
-  min-width: 280px;
-  padding: 8px;
-  color: #1c1c1e;
-  background-color: #f2f2f7;
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body.om-popup {
+  min-width: 300px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base01, #f2f2f7);
+  -webkit-font-smoothing: antialiased;
 }
 
 .om-hidden {
@@ -31,227 +39,326 @@ body {
 /* Menu */
 
 .om-nav {
+  display: block;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-  .om-section {
-    display: block;
-    margin-bottom: 8px;
-  }
+/* Focus lands here on open so the arrow keys can start walking the list
+ * without drawing a focus ring around the whole popup. */
+.om-nav:focus {
+  outline: none;
+}
 
-  .om-card {
-    background-color: #fff;
-    border-radius: 12px;
-    padding: 4px;
-  }
+.om-section {
+  display: block;
+  margin-top: 16px;
+}
 
-  .om-page-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 6px 6px 8px;
-    font-weight: 600;
-    color: #1c1c1e;
-  }
+.om-section-title {
+  margin: 0 0 6px 13px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--base03, #8e8e93);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-    .om-page-head > .glyphicon {
-      color: #8e8e93;
-    }
+.om-card {
+  background-color: var(--base00, #fff);
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-    .om-page-host-text {
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+/* Header: the site this popup is about, plus the one control that decides
+ * whether the list below applies to every tab or to this site only. */
 
-  /* Mode: one control, two states. The list below follows it. */
+.om-header {
+  display: block;
+  padding: 12px 14px;
+  background-color: var(--base00, #fff);
+  border-radius: 12px;
+}
 
-  .om-mode {
-    display: flex;
-    flex: 0 0 auto;
-    padding: 2px;
-    border-radius: 8px;
-    background-color: #e5e5ea;
-  }
+.om-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-    .om-mode-btn {
-      padding: 4px 10px;
-      border: 0;
-      border-radius: 6px;
-      background-color: transparent;
-      color: #3c3c43;
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 600;
-      line-height: 1.4;
-      cursor: pointer;
-    }
+.om-header-icon {
+  flex: none;
+  font-size: 16px;
+  color: var(--base03, #8e8e93);
+}
 
-    .om-mode-btn.om-mode-selected {
-      background-color: #fff;
-      color: #007aff;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
-    }
+.om-header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
 
-    .om-mode-btn.om-disabled,
-    .om-mode-btn:disabled {
-      color: #c7c7cc;
-      cursor: default;
-    }
+.om-header-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--base05, #1c1c1e);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-    .om-mode-btn:focus {
-      outline: none;
-      box-shadow: 0 0 0 2px rgba(0, 122, 255, .35);
-    }
+.om-header-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--base03, #8e8e93);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .om-scope {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 6px 6px 8px;
-  }
+/* A state chip that toggles on click: it only ever shows the state it is in.
+ * Inverted accent text keeps it legible in both light and dark palettes. */
 
-  .om-nav-item {
-    display: block;
-    margin: 1px 0;
-  }
+.om-switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base02, #e5e5ea);
+  cursor: pointer;
+  -webkit-transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
 
-    .om-nav-item > a {
-      display: flex;
-      align-items: center;
-      padding: 7px 8px;
-      border-radius: 8px;
-      line-height: 1.5;
-      font-size: 1em;
-      color: #1c1c1e;
-      text-decoration: none;
-      white-space: nowrap;
-      cursor: pointer;
-    }
+.om-switch::after {
+  content: "\e115";
+  font-family: 'Glyphicons Halflings';
+  font-size: 9px;
+  font-weight: 400;
+  opacity: .65;
+}
 
-    .om-nav-item > a:hover {
-      text-decoration: none;
-      background-color: #f2f2f7;
-    }
+.om-switch:hover {
+  opacity: .82;
+}
 
-    .om-nav-item > a:focus {
-      outline: none;
-      box-shadow: inset 0 0 0 2px rgba(0, 122, 255, .4);
-    }
+.om-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--softAccent, var(--selectionBackground, rgba(0, 122, 255, .25))),
+    0 0 0 3px var(--primaryColor, #007aff);
+}
 
-    .om-nav-item > a > .glyphicon {
-      margin-right: 8px;
-    }
+.om-switch.om-switch-on {
+  color: var(--base00, #fff);
+  background-color: var(--primaryColor, #007aff);
+}
 
-    .om-nav-item.om-effective > a {
-      background-color: rgba(0, 122, 255, .1);
-      color: #007aff;
-    }
+.om-switch.om-switch-on:hover {
+  opacity: .88;
+}
 
-    .om-nav-item.om-active > a {
-      color: #fff;
-      background-color: #007aff;
-    }
+.om-switch.om-disabled,
+.om-switch:disabled {
+  color: var(--base03, #8e8e93);
+  background-color: var(--base02, #e5e5ea);
+  cursor: default;
+  opacity: .6;
+}
 
-    .om-nav-item.om-active > a:hover {
-      background-color: #0071eb;
-    }
+/* Scope: one segmented control, labelled with the host names themselves. */
 
-    .om-nav-item.om-active > a:focus {
-      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55);
-    }
-
-    .om-nav-item > a.om-disabled {
-      cursor: default;
-      color: #c7c7cc;
-    }
-
-    .om-nav-item > a.om-disabled:hover {
-      background-color: transparent;
-      color: #c7c7cc;
-    }
-
-    .om-nav-item > a.om-disabled > .glyphicon {
-      color: #c7c7cc !important;
-    }
-
-  .om-divider {
-    height: 1px;
-    overflow: hidden;
-    background-color: #e5e5ea;
-    margin: 4px 8px;
-  }
-
-/* Scope switcher, shown only in page mode */
+.om-scope {
+  display: block;
+  margin-top: 10px;
+}
 
 .om-segmented {
   display: flex;
-  flex: 1 1 auto;
   gap: 2px;
   padding: 2px;
-  background-color: #e5e5ea;
-  border-radius: 8px;
+  border-radius: 9px;
+  background-color: var(--base02, #e5e5ea);
 }
 
-  .om-segmented-btn {
-    flex: 1;
-    padding: 4px 6px;
-    border: 0;
-    border-radius: 6px;
-    background-color: transparent;
-    color: #3c3c43;
-    font-family: inherit;
-    font-size: 12px;
-    line-height: 1.4;
-    cursor: pointer;
-  }
+.om-segmented-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--base05, #1c1c1e);
+  background-color: transparent;
+  cursor: pointer;
+}
 
-  .om-segmented-btn:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 122, 255, .35);
-  }
+.om-segmented-btn:hover {
+  background-color: var(--base00, #fff);
+}
 
-  .om-segmented-btn.om-scope-selected {
-    background-color: #fff;
-    color: #007aff;
-    font-weight: 600;
-  }
+.om-segmented-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--primaryColor, #007aff);
+}
+
+.om-segmented-btn.om-segmented-selected {
+  font-weight: 600;
+  color: var(--base00, #fff);
+  background-color: var(--primaryColor, #007aff);
+}
+
+/* Inset separators drawn at the top of every row but the first: a hidden row
+ * therefore never leaves a dangling line behind, and a highlighted row keeps
+ * a clean bottom edge. */
+.om-nav-item {
+  display: block;
+  position: relative;
+}
+
+.om-nav-item:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 44px;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background-color: var(--separatorColor, var(--selectionBackground, rgba(60, 60, 67, .13)));
+}
+
+.om-popup .om-nav-item > a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--base05, #1c1c1e);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.om-popup .om-nav-item > a:hover {
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base02, #e5e5ea);
+}
+
+.om-popup .om-nav-item > a:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--primaryColor, #007aff);
+}
+
+.om-nav-item > a > .glyphicon:not(.om-item-mark) {
+  flex: none;
+  width: 20px;
+  margin-right: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Inset separators come from the row itself; a dropdown row is not part of
+ * the group outline. */
+.om-dropdown .om-nav-item::before {
+  display: none;
+}
+
+.om-nav-item.om-selected > a {
+  color: var(--primaryColor, #007aff);
+  background-color: var(--softAccent, var(--selectionBackground, rgba(0, 122, 255, .1)));
+}
+
+.om-popup .om-nav-item.om-selected > a:hover {
+  color: var(--primaryColor, #007aff);
+  background-color: var(--softAccent, var(--selectionBackground, rgba(0, 122, 255, .1)));
+}
 
 .om-item-mark {
+  flex: none;
+  width: auto;
   margin-left: auto;
+  margin-right: 0;
+  padding-left: 10px;
+  font-size: 12px;
+  color: var(--primaryColor, #007aff);
 }
 
-.om-item-note {
-  margin-left: auto;
-  padding-left: 8px;
-  font-size: 11px;
-  color: #c7c7cc;
+.om-nav-addrule > a {
+  color: var(--primaryColor, #007aff);
 }
 
-/* Resource loading warning */
+.om-popup .om-nav-item.om-nav-addrule > a:hover {
+  color: var(--primaryColor, #007aff);
+}
+
+.om-nav-addrule > a > .glyphicon {
+  color: var(--primaryColor, #007aff);
+}
+
+.om-option-row > a > .glyphicon {
+  color: var(--base03, #8e8e93);
+}
+
+#js-direct > .glyphicon:not(.om-item-mark) {
+  color: var(--base03, #8e8e93);
+}
+
+#js-system > .glyphicon:not(.om-item-mark) {
+  color: var(--base04, #3c3c43);
+}
+
+/* Resource loading warning: a normal grouped row with a warning icon, so it
+ * stays readable on every palette instead of hard-coding an amber banner. */
 
 .om-reqinfo {
-  margin: 0 0 8px;
+  display: block;
+  margin-bottom: 16px;
 }
 
-  .om-reqinfo > a {
-    padding: 7px 10px;
-    border-radius: 12px;
-    background-color: #fff8e6;
-    color: #8a6d3b;
-  }
+.om-reqinfo > a {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: var(--base00, #fff);
+  color: var(--base05, #1c1c1e);
+  text-decoration: none;
+  white-space: nowrap;
+}
 
-  .om-reqinfo > a:hover {
-    background-color: #fdf2d5;
-  }
+.om-reqinfo > a:hover {
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base00, #fff);
+}
 
-  .glyphicon-warning-sign {
-    color: #ff9500;
-  }
+.om-reqinfo > a > .glyphicon {
+  flex: none;
+  width: 20px;
+  margin-right: 10px;
+  color: var(--warningColor, #ff9500);
+}
+
+.om-reqinfo-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Dropdown (default profile of a switch profile) */
 
@@ -259,9 +366,9 @@ body {
   display: none;
   list-style: none;
   padding: 4px;
-  margin: 2px 0 0;
-  background-color: #f2f2f7;
-  border-radius: 8px;
+  margin: 2px 8px 8px 44px;
+  background-color: var(--base01, #f2f2f7);
+  border-radius: 10px;
   max-height: 16em;
   overflow-y: auto;
 }
@@ -270,12 +377,14 @@ body {
   display: block;
 }
 
-.om-dropdown .om-nav-item {
-  margin: 0;
+.om-dropdown .om-nav-item > a {
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 7px;
 }
 
-.om-dropdown .om-nav-item > a {
-  padding: 5px 8px;
+.om-dropdown .om-nav-item > a::before {
+  display: none;
 }
 
 .om-virtual-profile-icon {
@@ -286,53 +395,74 @@ body {
 /* Default Edit */
 
 .om-has-edit {
-  padding-right: 30px !important;
-  position: relative;
+  padding-right: 38px !important;
 }
 
-  .om-edit-toggle {
-    position: absolute;
-    top: 50%;
-    right: 4px;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 5px;
-    color: #8e8e93;
-    cursor: pointer;
-  }
+.om-edit-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  -webkit-transform: translateY(-50%);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--base03, #8e8e93);
+  cursor: pointer;
+}
 
-  .om-edit-toggle:hover {
-    background-color: rgba(0, 0, 0, .06);
-    color: #1c1c1e;
-  }
+/* A theme snapshot captured with the earlier base.css still carries a bordered
+ * chip for this control; the popup draws a bare chevron, and the scoped rule
+ * wins over that snapshot regardless of injection order. */
+.om-popup .om-edit-toggle {
+  background-color: transparent;
+  border: 0;
+  color: var(--base03, #8e8e93);
+}
 
-  .om-nav-item.om-active > a .om-edit-toggle {
-    color: rgba(255, 255, 255, .85);
-  }
+.om-edit-toggle:hover {
+  background-color: var(--base02, #e5e5ea);
+  color: var(--base05, #1c1c1e);
+}
 
-  .om-nav-item.om-active > a .om-edit-toggle:hover {
-    background-color: rgba(255, 255, 255, .18);
-    color: #fff;
-  }
+.om-nav-item.om-selected > a .om-edit-toggle {
+  color: var(--primaryColor, #007aff);
+}
+
+.om-page-mode .om-edit-toggle {
+  display: none;
+}
+
+.om-page-mode .om-nav-item > a.om-has-edit {
+  padding-right: 14px !important;
+}
 
 /* Keyboard */
 
 .om-keyboard-help {
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  border: solid 1px #8e8e93;
-  border-radius: 3px;
+  flex: none;
   display: inline-block;
-  color: #8e8e93;
-  width: 1em;
-  height: 1em;
-  line-height: 1em;
+  width: 1.15em;
+  height: 1.15em;
+  margin: -2px 8px 0 0;
+  border: solid 1px var(--base03, #8e8e93);
+  border-radius: 3px;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 10px;
+  line-height: 1.15em;
   text-align: center;
-  margin: -2px 6px 0 0;
-  font-size: 11px;
+  color: var(--base03, #8e8e93);
+}
+
+.om-switch .om-keyboard-help {
+  margin: 0 0 0 3px;
+  color: inherit;
+  border-color: currentColor;
+  opacity: .7;
 }
 
 /* Glyphicons */

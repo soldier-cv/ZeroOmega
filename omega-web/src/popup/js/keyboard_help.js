@@ -4,7 +4,7 @@
     'js-system': 'S',
     'js-external': 'E',
     'js-addrule': 'A',
-    'js-mode-page': 'T',
+    'js-mode-toggle': 'T',
     'js-option': 'O',
     'js-reqinfo': 'R'
   }
@@ -28,6 +28,10 @@
       var reference = element.querySelector('.glyphicon');
       if (reference) {
         reference.parentNode.insertBefore(span, reference.nextSibling);
+      } else if (element.classList.contains('om-switch')) {
+        // The mode chip is a pill; a leading badge would push the label off
+        // its left padding, so the hint goes after the label instead.
+        element.appendChild(span);
       } else {
         element.insertBefore(span, element.firstChild);
       }

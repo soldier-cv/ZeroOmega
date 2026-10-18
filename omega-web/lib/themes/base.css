@@ -376,33 +376,11 @@ main .page-header {
 * popup.css
 **/
 
-#js-system{
-  color: var(--defaultForeground);
-}
+/* The popup draws its own grouped list (see popup/css/index.css) so that it
+ * follows the palette; only shared elements are themed here. */
 
-.om-nav-item > a:hover {
-  color: var(--defaultForeground);
-}
-.om-nav-item > a:hover {
-  background-color: var(--lighterBackground);
-}
-.om-nav-item.om-active > a {
-  color: var(--whiteColor)!important;
-  background-color: var(--infoColor);
-}
 .om-divider {
   background-color: var(--lighterBackground);
-}
-
-.om-edit-toggle{
-  background-color: var(--defaultBackground);
-  border-color: var(--selectionBackground);
-  color: var(--primaryColor);
-}
-
-.om-edit-toggle:hover{
-  background-color: var(--lighterBackground);
-  border-color: var(--highlightBackground);
 }
 
 /**

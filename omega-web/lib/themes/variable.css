@@ -2,7 +2,7 @@
   color-scheme: light;
   --base00: #ffffff;
   --base01: #f2f2f7;
-  --base02: #d1d1d6;
+  --base02: #e5e5ea;
   --base03: #8e8e93;
   --base04: #3c3c43;
   --base05: #1c1c1e;
@@ -16,19 +16,24 @@
   --base0D: #5856d6;
   --base0E: #ff9500;
   --base0F: #a2845e;
-  --defaultBackground: var(--base00, #ffffff);
-  --lighterBackground: var(--base01, #f2f2f7);
-  --selectionBackground: var(--base02, #d1d1d6);
-  --highlightBackground: var(--base03, #8e8e93);
-  --darkForeground: var(--base04, #3c3c43);
-  --defaultForeground: var(--base05, #1c1c1e);
-  --lightForeground: var(--base06, #000000);
-  --lightBackground: var(--base07, #000000);
-  --primaryColor: var(--base09, #007aff);
-  --secondaryColor: var(--base0D, #5856d6);
-  --positiveColor: var(--base0B, #34c759);
-  --negativeColor: var(--base08, #ff3b30);
-  --infoColor: var(--base0A, #007aff);
-  --warningColor: var(--base0E, #ff9500);
+  /* The built-in themes override these with their own accent tint; a base16
+     theme only supplies base00..base0F, so the neutral surface / border
+     colours are used there instead. */
+  --softAccent: var(--lighterBackground);
+  --separatorColor: var(--selectionBackground);
+  --defaultBackground: var(--base00);
+  --lighterBackground: var(--base01);
+  --selectionBackground: var(--base02);
+  --highlightBackground: var(--base03);
+  --darkForeground: var(--base04);
+  --defaultForeground: var(--base05);
+  --lightForeground: var(--base06);
+  --lightBackground: var(--base07);
+  --primaryColor: var(--base09);
+  --secondaryColor: var(--base0D);
+  --positiveColor: var(--base0B);
+  --negativeColor: var(--base08);
+  --infoColor: var(--base0A);
+  --warningColor: var(--base0E);
   --whiteColor: #fff;
 }

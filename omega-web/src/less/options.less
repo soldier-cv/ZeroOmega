@@ -66,6 +66,58 @@ ul.list-style-none, li.list-style-none {
   }
 }
 
+/* Theme picker: one card per built-in palette, one button per variant. */
+
+.om-theme-list {
+  max-width: 720px;
+  margin-bottom: 10px;
+}
+
+.om-theme-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  background: var(--defaultBackground, #fff);
+  border: 1px solid var(--selectionBackground, #e5e5ea);
+  border-radius: 10px;
+}
+
+.om-theme-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.om-theme-swatches {
+  display: inline-flex;
+  flex: none;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--separatorColor, var(--selectionBackground, #d1d1d6));
+}
+
+.om-theme-swatch {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.om-theme-card-name {
+  font-weight: 600;
+  color: var(--defaultForeground, #1c1c1e);
+}
+
+.om-theme-card-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
 /* shepherd.js */
 
 .shepherd-element {

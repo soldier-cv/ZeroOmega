@@ -464,6 +464,36 @@ msgstr "Builtin"
 msgid "options_theme"
 msgstr "Theme"
 
+msgid "options_themeBuiltin"
+msgstr "Built-in themes"
+
+msgid "options_themeBuiltinHelp"
+msgstr "Each theme has a light, a dark and a system-following variant."
+
+msgid "options_themeAppliesEverywhere"
+msgstr "The theme applies to this options page and to the popup."
+
+msgid "options_themeIos"
+msgstr "iOS"
+
+msgid "options_themeMorandi"
+msgstr "Morandi Green"
+
+msgid "options_themeClaude"
+msgstr "Claude Code"
+
+msgid "options_themeOther"
+msgstr "Other themes"
+
+msgid "options_themeOtherHelp"
+msgstr "Base16 themes bundled with ZeroOmega."
+
+msgid "options_themeSelectPlaceholder"
+msgstr "Select a theme"
+
+msgid "options_themeCustom"
+msgstr "Custom CSS"
+
 msgid "options_themeDark"
 msgstr "Dark"
 
@@ -1164,53 +1194,11 @@ msgstr "Report issues"
 msgid "popup_errorLog"
 msgstr "Save error log"
 
-msgid "popup_tempRuleScopeSubdomain"
-msgstr "This subdomain"
-
-msgid "popup_tempRuleScopeDomain"
-msgstr "Whole domain"
-
-msgid "popup_tempRuleAppliesTo"
-msgstr "Applies to $DOMAIN$"
-
 msgid "popup_tempRuleScope"
 msgstr "Scope"
 
-msgid "popup_tempRuleApplyProfile"
-msgstr "Apply profile"
-
-msgid "popup_tempRuleRemove"
-msgstr "Remove the temp rule for this scope"
-
-msgid "popup_tempRuleLabel"
-msgstr "Temp rule"
-
-msgid "popup_tempRuleNone"
-msgstr "Not set"
-
-msgid "popup_tempRuleUnavailable"
-msgstr "Unavailable"
-
 msgid "popup_tempRuleUnavailableHelp"
 msgstr "Temp rules are unavailable with the current global profile. Choose a switch profile such as Auto Switch first."
-
-msgid "popup_tempRuleHelp"
-msgstr "Temp rules last until the browser restarts and take precedence over the global profile."
-
-msgid "popup_tempRuleSystemGlobalOnly"
-msgstr "Global only"
-
-msgid "popup_tempRuleSystemGlobalOnlyHelp"
-msgstr "The system proxy cannot be used for the current page (PAC limitation). Switch to Global to select it."
-
-msgid "popup_sectionPage"
-msgstr "Page routing"
-
-msgid "popup_sectionProfiles"
-msgstr "Global profiles"
-
-msgid "popup_current"
-msgstr "Current"
 
 msgid "popup_modeGlobal"
 msgstr "Global"
@@ -1219,7 +1207,22 @@ msgid "popup_modePage"
 msgstr "This page"
 
 msgid "popup_modeHelp"
-msgstr "Global applies to every tab. This page applies only to the site shown above, until the browser restarts."
+msgstr "Click to switch. Global applies to every tab; This page applies only to the site above and is forgotten when the browser restarts."
+
+msgid "popup_globalProfiles"
+msgstr "Global profiles"
+
+msgid "popup_pageProfilesFor"
+msgstr "Profiles for $DOMAIN$"
+
+msgid "popup_globalUsing"
+msgstr "Using $PROFILE$ for every tab"
+
+msgid "popup_pageUsing"
+msgstr "Using $PROFILE$ for this site"
+
+msgid "popup_pageNotSet"
+msgstr "Pick a profile below to route this site"
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$ failed resources"

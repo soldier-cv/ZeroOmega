@@ -1,8 +1,9 @@
 :root {
   color-scheme: light;
+  --om-theme: ios-light;
   --base00: #ffffff;
   --base01: #f2f2f7;
-  --base02: #d1d1d6;
+  --base02: #e5e5ea;
   --base03: #8e8e93;
   --base04: #3c3c43;
   --base05: #1c1c1e;
@@ -16,4 +17,6 @@
   --base0D: #5856d6;
   --base0E: #ff9500;
   --base0F: #a2845e;
+  --softAccent: rgba(0, 122, 255, .1);
+  --separatorColor: rgba(60, 60, 67, .13);
 }

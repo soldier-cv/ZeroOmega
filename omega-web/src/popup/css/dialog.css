@@ -13,25 +13,34 @@ body, html {
   padding: 0;
 }
 
+body.om-dialog-body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Microsoft YaHei",
+    sans-serif;
+  font-size: 14px;
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base01, #f2f2f7);
+}
+
 p {
   margin: 0 0 1em 0;
 }
 
 .om-dialog {
   min-width: 400px;
-  padding: 10px 10px;
+  padding: 14px;
   font-size: 14px;
 }
 
   .om-text-danger {
-    color: #a94442;
+    color: var(--negativeColor, #ff3b30);
   }
 
   .om-dialog-help {
     display: block;
     margin-top: 5px;
     margin-bottom: 10px;
-    color: #737373;
+    color: var(--base03, #8e8e93);
   }
 
   .om-dialog-controls {
@@ -63,57 +72,51 @@ p {
   user-select: none;
   background-image: none;
   border: 1px solid transparent;
-  border-radius: 4px
+  border-radius: 8px;
+  font-family: inherit;
 }
 
 .om-btn.active, .om-btn:active {
   background-image: none;
   outline: 0;
-  -webkit-box-shadow: inset 0 3px 5px rgba(0,0,0,.125);
-  box-shadow: inset 0 3px 5px rgba(0,0,0,.125);
 }
 
 .om-btn-default {
-  color: #333;
-  background-color: #fff;
-  border-color: #ccc;
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base00, #fff);
+  border-color: var(--separatorColor, rgba(60, 60, 67, .13));
 }
 
 .om-btn-default:hover {
-  background-color: #e6e6e6;
-  border-color: #adadad;
+  background-color: var(--base02, #e5e5ea);
+  border-color: var(--base02, #e5e5ea);
 }
 
 .om-btn-link {
   font-weight: 400;
-  color: #337ab7;
+  color: var(--primaryColor, #007aff);
   border-radius: 0;
-  background-color: rgba(0, 0, 0, 0);
-  -webkit-box-shadow: none;
-  box-shadow: none;
-  border-color: rgba(0, 0, 0, 0);
+  background-color: transparent;
+  border-color: transparent;
 }
 
 .om-btn-link:hover {
-  color: #23527c;
+  color: var(--primaryColor, #007aff);
   text-decoration: underline;
-  background-color: rgba(0, 0, 0, 0);
+  background-color: transparent;
 }
 
 .om-btn-link:active {
-  background-color: rgba(0, 0, 0, 0);
-  -webkit-box-shadow: none;
-  box-shadow: none;
+  background-color: transparent;
 }
 
 .om-btn-primary {
   color: #fff;
-  background-color: #337ab7;
-  border-color: #2e6da4;
+  background-color: var(--primaryColor, #007aff);
+  border-color: var(--primaryColor, #007aff);
 }
 
 .om-btn-primary:hover {
   color: #fff;
-  background-color: #286090;
-  border-color: #204d74;
+  opacity: .88;
 }

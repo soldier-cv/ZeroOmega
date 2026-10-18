@@ -1,0 +1,22 @@
+:root {
+  color-scheme: light;
+  --om-theme: morandi-light;
+  --base00: #fbfaf7;
+  --base01: #f1f0ea;
+  --base02: #e2e0d6;
+  --base03: #8b8f87;
+  --base04: #4e544c;
+  --base05: #2e332d;
+  --base06: #1c201b;
+  --base07: #141813;
+  --base08: #b06a5b;
+  --base09: #5f7d66;
+  --base0A: #5f7d66;
+  --base0B: #7a9a74;
+  --base0C: #6f8f8c;
+  --base0D: #7a7c9e;
+  --base0E: #b08a4f;
+  --base0F: #8c7a6b;
+  --softAccent: rgba(95, 125, 102, .14);
+  --separatorColor: rgba(78, 84, 76, .14);
+}

@@ -1207,7 +1207,7 @@ msgid "popup_modePage"
 msgstr "This page"
 
 msgid "popup_modeHelp"
-msgstr "Click to switch. Global applies to every tab; This page applies only to the site above and is forgotten when the browser restarts."
+msgstr "Click to switch what the list below changes. Neither side removes a temp rule; click the active row again to remove just that one."
 
 msgid "popup_globalProfiles"
 msgstr "Global profiles"
@@ -1221,8 +1221,14 @@ msgstr "Using $PROFILE$ for every tab"
 msgid "popup_pageUsing"
 msgstr "Using $PROFILE$ for this site"
 
+msgid "popup_domainOverride"
+msgstr "Also covered by a temp rule: $PROFILE$, for every site under $DOMAIN$"
+
+msgid "popup_domainOverrideClear"
+msgstr "Remove"
+
 msgid "popup_pageNotSet"
-msgstr "Pick a profile below to route this site"
+msgstr "Pick a profile below. It applies only to the scope shown above."
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$ failed resources"

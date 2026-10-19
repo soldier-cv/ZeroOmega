@@ -37,7 +37,6 @@
   $script.ready(['om-state', 'om-page-info'], updateMenuByStateAndPageInfo);
 
   OmegaPopup.applyPageProfile = applyPageProfile;
-  OmegaPopup.clearPageTempRules = clearPageTempRules;
 
   return;
 
@@ -101,19 +100,13 @@
       .setAttribute('title', info.url || '');
 
     OmegaPopup.pageScopes = pageScopes(info);
+    // Only a rule written for this host is "this page". A rule for the
+    // registrable domain covers every subdomain of it, so it must not be
+    // presented (or rewritten) as this page's own route.
     OmegaPopup.pageRoute = pageRouteFromInfo(info);
     OmegaPopup.pageScope = OmegaPopup.pageScopes[0] || null;
-    if (OmegaPopup.pageRoute) {
-      OmegaPopup.pageScopes.forEach(function(scope) {
-        if (scope.key === OmegaPopup.pageRoute.key) {
-          OmegaPopup.pageScope = scope;
-        }
-      });
-    }
     renderScope();
 
-    // A page that already has a temp rule opens on "this page", so the
-    // highlighted row is the route that is really in effect.
     if (OmegaPopup.pageRoute && pageModeAvailable()) OmegaPopup.mode = 'page';
     applyMode();
   }
@@ -130,23 +123,34 @@
     return scopes;
   }
 
-  function pageRuleEntries() {
+  function ruleForKey(key) {
     var info = OmegaPopup.pageInfo;
-    var rules = [];
-    if (!info || !info.url) return rules;
-    if (info.host && info.host !== info.domain &&
+    if (!info || !key) return null;
+    if (info.host && key === info.host && key !== info.domain &&
         info.tempRuleHostProfileName) {
-      rules.push({key: info.host, profileName: info.tempRuleHostProfileName});
+      return {key: key, profileName: info.tempRuleHostProfileName};
     }
-    if (info.tempRuleProfileName) {
-      rules.push({key: info.domain, profileName: info.tempRuleProfileName});
+    if (key === info.domain && info.tempRuleProfileName) {
+      return {key: key, profileName: info.tempRuleProfileName};
     }
-    return rules;
+    return null;
   }
 
   function pageRouteFromInfo(info) {
-    var rules = pageRuleEntries();
-    return rules.length ? rules[0] : null;
+    if (!info) return null;
+    // A bare host is its own domain, so the one rule it can have is the page.
+    if (info.host && info.host === info.domain) return ruleForKey(info.domain);
+    return ruleForKey(info.host);
+  }
+
+  // The rule a wider scope already carries. Shown, never edited from here:
+  // changing it would reroute every other subdomain that relies on it.
+  function inheritedRule() {
+    var info = OmegaPopup.pageInfo;
+    var scope = OmegaPopup.pageScope;
+    if (!info || !scope || scope.kind !== 'host') return null;
+    if (!info.tempRuleProfileName) return null;
+    return {key: info.domain, profileName: info.tempRuleProfileName};
   }
 
   // Keep the pageInfo copy in step with what was just written, so a second
@@ -210,46 +214,39 @@
 
   function setPageScope(scope) {
     if (!scope || OmegaPopup.pageScope === scope) return;
+    // Scope only chooses where the next click writes. It never moves or
+    // deletes a rule: the other scope may be what another site relies on.
     OmegaPopup.pageScope = scope;
     updateScopeSelection();
-    // The route is shared: moving the scope carries the chosen profile along
-    // instead of asking the user to pick it again.
-    var route = OmegaPopup.pageRoute;
-    if (route) writePageRoute(scope.key, route.profileName);
     applyMode();
   }
 
+  // Write exactly one rule, the one for the scope that was clicked. Every
+  // other temp rule — including a domain rule that other subdomains inherit —
+  // is left exactly as it was.
   function writePageRoute(key, profileName) {
-    var rules = pageRuleEntries();
-    var existing = null;
-    rules.forEach(function(rule) {
-      if (rule.key === key) existing = rule;
-    });
-    // Add before deleting so the page never falls back to the global profile
-    // for a moment while the route moves between scopes.
+    var existing = ruleForKey(key);
     // addTempRule toggles, so it is only called when the rule is missing or
     // points elsewhere; calling it with the same profile would remove it.
     if (!existing || existing.profileName !== profileName) {
       if (OmegaPopup.addTempRule) OmegaPopup.addTempRule(key, profileName);
     }
-    rules.forEach(function(rule) {
-      if (rule.key === key) return;
-      if (OmegaPopup.clearTempRule) {
-        OmegaPopup.clearTempRule(rule.key, rule.profileName);
-      }
-      rememberRule(rule.key, null);
-    });
     rememberRule(key, profileName);
-    OmegaPopup.pageRoute = {key: key, profileName: profileName};
+    if (OmegaPopup.pageScope && OmegaPopup.pageScope.key === key) {
+      OmegaPopup.pageRoute = {key: key, profileName: profileName};
+    }
   }
 
-  function clearPageTempRules() {
-    pageRuleEntries().forEach(function(rule) {
-      if (OmegaPopup.clearTempRule) {
-        OmegaPopup.clearTempRule(rule.key, rule.profileName);
-      }
-      rememberRule(rule.key, null);
-    });
+  // Remove the one rule the current scope is showing. A click never reaches
+  // a rule of another scope.
+  function clearCurrentScopeRule() {
+    var scope = OmegaPopup.pageScope;
+    var rule = scope && ruleForKey(scope.key);
+    if (!rule) return;
+    if (OmegaPopup.clearTempRule) {
+      OmegaPopup.clearTempRule(rule.key, rule.profileName);
+    }
+    rememberRule(rule.key, null);
     OmegaPopup.pageRoute = null;
   }
 
@@ -261,14 +258,13 @@
     });
   }
 
-  // The toggle only ever shows the state it is in. Switching to the page
-  // view leaves the routing untouched; switching back to global drops the
-  // page override so that the highlighted row is what really applies.
+  // The toggle only changes which list is shown. It never writes or deletes a
+  // temp rule: dropping one here used to take a route away from other sites
+  // that were still using it.
   function setMode(mode) {
     if (mode === 'page' && !pageModeAvailable()) return;
     if (mode === OmegaPopup.mode) return;
     OmegaPopup.mode = mode;
-    if (mode === 'global') clearPageTempRules();
     applyMode();
   }
 
@@ -309,6 +305,9 @@
 
     if (subtitle) subtitle.textContent = subtitleText();
 
+    var note = document.getElementById('js-inherited');
+    if (note) renderInherited(note, pageMode);
+
     if (caption) {
       caption.textContent = pageMode && scope ?
         getMessage('popup_pageProfilesFor', [scope.key]) :
@@ -333,7 +332,7 @@
   function subtitleText() {
     var state = OmegaPopup.state;
     if (OmegaPopup.mode === 'page') {
-      var route = OmegaPopup.pageRoute;
+      var route = ruleForKey(OmegaPopup.pageScope && OmegaPopup.pageScope.key);
       return route ?
         getMessage('popup_pageUsing', [profileTitle(route.profileName)]) :
         getMessage('popup_pageNotSet');
@@ -348,6 +347,28 @@
     }
     return getMessage('popup_globalUsing',
       [profileTitle(state.currentProfileName)]);
+  }
+
+  // A domain-wide temp rule still decides this host, but it also decides
+  // every sibling. Say so, and offer the one explicit way to drop it.
+  function renderInherited(note, pageMode) {
+    var rule = !pageMode && inheritedRule();
+    note.classList.toggle('om-hidden', !rule);
+    if (!rule) return;
+    note.querySelector('.om-inherited-text').textContent =
+      getMessage('popup_domainOverride',
+        [profileTitle(rule.profileName), rule.key]);
+    var button = note.querySelector('.om-inherited-clear');
+    button.textContent = getMessage('popup_domainOverrideClear');
+    if (button.dataset.bound) return;
+    button.dataset.bound = '1';
+    button.addEventListener('click', function() {
+      var current = inheritedRule();
+      if (!current || !OmegaPopup.clearTempRule) return;
+      OmegaPopup.clearTempRule(current.key, current.profileName);
+      rememberRule(current.key, null);
+      applyMode();
+    });
   }
 
   function refreshActive() {
@@ -396,7 +417,9 @@
   // it is the external row that is marked as in effect.
   function activeProfileName(state, pageMode) {
     if (pageMode) {
-      return OmegaPopup.pageRoute && OmegaPopup.pageRoute.profileName;
+      var scope = OmegaPopup.pageScope;
+      var rule = ruleForKey(scope && scope.key);
+      return rule && rule.profileName;
     }
     if (state.showExternalProfile && state.externalProfile &&
         state.currentProfileName === '') {
@@ -405,17 +428,19 @@
     return state.isSystemProfile ? 'system' : state.currentProfileName;
   }
 
-  // A click on a list row in page mode writes that profile as the page route.
-  // Clicking the row already in effect does nothing; the way back to the
-  // global profile is the mode toggle, which clears the page route.
+  // A click writes that profile to the scope currently shown, and nothing
+  // else. Clicking the row already in effect removes that one rule; it used
+  // to do nothing, which left the capsule as the only way back and that way
+  // deleted every rule of the page.
   function applyPageProfile(profileName) {
     var scope = OmegaPopup.pageScope;
     if (!scope || profileName === 'system') return;
-    var route = OmegaPopup.pageRoute;
-    if (route && route.key === scope.key && route.profileName === profileName) {
-      return;
+    var rule = ruleForKey(scope.key);
+    if (rule && rule.profileName === profileName) {
+      clearCurrentScopeRule();
+    } else {
+      writePageRoute(scope.key, profileName);
     }
-    writePageRoute(scope.key, profileName);
     applyMode();
   }
 

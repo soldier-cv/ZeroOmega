@@ -6,7 +6,6 @@
   OmegaPopup.clearTempRule = clearTempRule;
   OmegaPopup.setDefaultProfile = setDefaultProfile;
   OmegaPopup.applyProfile = applyProfile;
-  OmegaPopup.applyGlobalProfile = applyGlobalProfile;
   OmegaPopup.chooseProfile = chooseProfile;
   return;
 
@@ -38,28 +37,16 @@
   }
 
   // A click on a profile row does whatever the mode button says: in global
-  // mode it becomes the global profile and the page goes back to following
-  // it; in page mode it is written as a temp rule for the chosen scope.
+  // mode it becomes the global profile; in page mode it is written as a temp
+  // rule for the chosen scope only.
   function chooseProfile(profileName) {
     $script.ready('om-target', function() {
       if (OmegaPopup.mode === 'page') {
         if (profileName === 'system') return;
         if (OmegaPopup.applyPageProfile) OmegaPopup.applyPageProfile(profileName);
       } else {
-        applyGlobalProfile(profileName);
+        applyProfile(profileName);
       }
-    });
-  }
-
-  // Applying a global profile also resolves the page-level override: the
-  // global choice wins, so any temp rule for this page (and its domain) is
-  // cleared and the page goes back to following the global profile.
-  function applyGlobalProfile(profileName) {
-    $script.ready('om-target', function() {
-      if (OmegaPopup.clearPageTempRules) {
-        OmegaPopup.clearPageTempRules();
-      }
-      OmegaTargetPopup.applyProfile(profileName, closePopup);
     });
   }
 

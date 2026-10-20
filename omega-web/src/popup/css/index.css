@@ -279,7 +279,7 @@ body.om-popup {
 .om-nav-item:not(:first-child)::before {
   content: '';
   position: absolute;
-  left: 60px;
+  left: 57px;
   right: 0;
   top: 0;
   height: 1px;
@@ -290,9 +290,9 @@ body.om-popup {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 52px;
-  padding: 8px 16px;
-  font-size: 16px;
+  min-height: 44px;
+  padding: 6px 16px;
+  font-size: 15px;
   color: var(--base05, #1c1c1e);
   text-decoration: none;
   white-space: nowrap;
@@ -314,11 +314,11 @@ body.om-popup {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-right: 14px;
-  border-radius: 8px;
-  font-size: 15px;
+  width: 29px;
+  height: 29px;
+  margin-right: 12px;
+  border-radius: 7px;
+  font-size: 14px;
   line-height: 1;
   color: #fff;
   background-color: var(--base03, #8e8e93);

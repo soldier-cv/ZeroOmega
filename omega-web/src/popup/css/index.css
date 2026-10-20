@@ -279,7 +279,7 @@ body.om-popup {
 .om-nav-item:not(:first-child)::before {
   content: '';
   position: absolute;
-  left: 44px;
+  left: 54px;
   right: 0;
   top: 0;
   height: 1px;
@@ -311,10 +311,17 @@ body.om-popup {
 
 .om-nav-item > a > .glyphicon:not(.om-item-mark) {
   flex: none;
-  width: 20px;
-  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 12px;
+  border-radius: 7px;
   font-size: 14px;
-  text-align: center;
+  line-height: 1;
+  color: #fff;
+  background-color: var(--base03, #8e8e93);
 }
 
 /* Inset separators come from the row itself; a dropdown row is not part of
@@ -323,14 +330,12 @@ body.om-popup {
   display: none;
 }
 
-.om-nav-item.om-selected > a {
-  color: var(--primaryColor, #007aff);
-  background-color: var(--softAccent, var(--selectionBackground, rgba(0, 122, 255, .1)));
-}
-
+/* iOS grouped lists keep the row's own colours and mark the current one with
+ * a trailing check, instead of painting the whole row. */
+.om-nav-item.om-selected > a,
 .om-popup .om-nav-item.om-selected > a:hover {
-  color: var(--primaryColor, #007aff);
-  background-color: var(--softAccent, var(--selectionBackground, rgba(0, 122, 255, .1)));
+  color: var(--base05, #1c1c1e);
+  background-color: transparent;
 }
 
 .om-item-mark {
@@ -339,7 +344,8 @@ body.om-popup {
   margin-left: auto;
   margin-right: 0;
   padding-left: 10px;
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--primaryColor, #007aff);
 }
 
@@ -352,19 +358,27 @@ body.om-popup {
 }
 
 .om-nav-addrule > a > .glyphicon {
-  color: var(--primaryColor, #007aff);
+  color: #fff;
+  background-color: var(--primaryColor, #007aff);
 }
 
 .om-option-row > a > .glyphicon {
-  color: var(--base03, #8e8e93);
+  color: #fff;
+  background-color: var(--base03, #8e8e93);
 }
 
 #js-direct > .glyphicon:not(.om-item-mark) {
-  color: var(--base03, #8e8e93);
+  background-color: #34c759;
 }
 
 #js-system > .glyphicon:not(.om-item-mark) {
-  color: var(--base04, #3c3c43);
+  background-color: #8e8e93;
+}
+
+/* A profile's own colour is the user's choice and can be too light to carry
+ * white, so it stays on the glyph and the tile underneath is neutral. */
+.om-nav-item > a > .glyphicon[style]:not(.om-item-mark) {
+  background-color: var(--base02, #e5e5ea);
 }
 
 /* Resource loading warning: a normal grouped row with a warning icon, so it

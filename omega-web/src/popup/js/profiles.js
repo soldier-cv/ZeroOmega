@@ -550,7 +550,9 @@
     var iconClass = iconForProfileType[targetProfile.profileType];
     var icon = profileDisp.querySelector('.glyphicon');
     icon.setAttribute('class', 'glyphicon ' + iconClass);
-    icon.style.color = targetProfile.color;
+    // The colour fills the rounded tile and the glyph stays white, the way an
+    // iOS settings row carries its icon. A missing colour keeps the neutral tile.
+    if (targetProfile.color) icon.style.backgroundColor = targetProfile.color;
     if (targetProfile !== profile) {
       icon.classList.add('om-virtual-profile-icon');
     }

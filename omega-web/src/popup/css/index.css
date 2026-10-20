@@ -276,6 +276,9 @@ body.om-popup {
   position: relative;
 }
 
+/* Hairline inset on both sides, starting at the label's left edge like an iOS
+ * grouped list. A whole value of 0.5px renders as one device pixel on HiDPI
+ * screens instead of a fat 1px line. */
 .om-nav-item:not(:first-child)::before {
   content: '';
   position: absolute;
@@ -284,6 +287,10 @@ body.om-popup {
   top: 0;
   height: 1px;
   background-color: var(--separatorColor, var(--selectionBackground, rgba(60, 60, 67, .13)));
+  -webkit-transform: scaleY(.5);
+  transform: scaleY(.5);
+  -webkit-transform-origin: 0 0;
+  transform-origin: 0 0;
 }
 
 .om-popup .om-nav-item > a {
@@ -294,6 +301,8 @@ body.om-popup {
   padding: 6px 16px;
   font-size: 15px;
   color: var(--base05, #1c1c1e);
+  background-color: transparent;
+  border-radius: 0;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;

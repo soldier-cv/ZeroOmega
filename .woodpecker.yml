@@ -23,7 +23,7 @@ steps:
       - cat .release_tag
 
   - name: build
-    image: docker.1ms.run/library/node:22-alpine
+    image: docker.1ms.run/library/node:22.23.4-alpine
     environment:
       HTTP_PROXY: http://100.64.0.88:7897
       HTTPS_PROXY: http://100.64.0.88:7897
@@ -40,7 +40,7 @@ steps:
       - ls -la ../dist
 
   - name: test
-    image: docker.1ms.run/library/node:22-alpine
+    image: docker.1ms.run/library/node:22.23.4-alpine
     commands:
       # 基线（AGENTS.md §4.3）：omega-pac 142 passing / 1 既有失败（SOCKS5，与改动无关）
       #                          omega-target 必须全绿

@@ -297,6 +297,33 @@
 - **验证（2026-10-28）**：本地版本 3.6.3 时行显示「已是最新（v3.6.3）」，缓存里写入的是**服务器清单里的命令原文**；离线（CDP 断网）+ 清缓存后点击 → 「检查更新失败，点此重试」，可再点重试；注入更高版本缓存 → 行变主色「有新版本 v9.9.9 · 复制更新命令」并出现「重载扩展」行，点击后剪贴板写入成功、文案变「已复制，粘贴到 PowerShell 执行」、tooltip 换成下一步提示。`npm run build` 全绿，构建产物与源逐字节一致。
 - **风险 / 已知**：`chrome.runtime.reload()` 会让 popup 关闭，属预期；Firefox 侧同样只做检查（临时加载的扩展重载后仍在，但 Firefox 需要重新「临时载入」才拿到新文件——实现未区分，保持同一套文案）。
 
+### R15. 版本查询接口（`/res/zeroomega/version.json` + `version.txt`） — 状态：**脚本与 CI 已实现，本地模拟 /res 全场景验证通过，待生产落盘**（2026-10-28）
+
+- **背景**：华总要求「static deploy 提供一个查询最新版本的入口，一个接口能请求到版本号就行」。此前扩展 popup 的更新检查（`js/update.js`）直接 fetch 分发包清单 `manifest.json`——那是给 portal 首页渲染卡片用的混合结构，改首页展示就会牵连版本查询。
+- **第一性原理（约束推导）**：
+  1. 消费方两类：扩展 popup / 人 + 脚本。人用 `curl .../version.txt` 要一行出结果；机器读 `version.json`，字段与顺序必须稳定。
+  2. 唯一真源是**分发出去的那个 zip**：git tag、CI 变量、仓库版本、清单里的 version 都可能与包不一致（tag 与包版本脱钩正是要防的事故），所以版本只从 zip 内 `manifest.json` 读，脚本**不提供 `--version` 参数**。
+  3. 端点要在局域网 IP / ZeroTier IP / 未来公网域名下都能用：文件里不写 host，全用相对路径，客户端自己拼。
+  4. 部署是 nginx 静态目录 + 只读挂载，没有应用层写接口：所谓「接口」只能是文件，由 CI 在发版时原子落盘。
+- **接口契约**：
+  - `/res/zeroomega/version.json`（UTF-8 无 BOM、`ensure_ascii=False`、结尾一个换行），字段与顺序固定为：
+    `package` / `version` / `built_at` / `updated_at` / `channel` / `source` / `release_notes` / `downloads.{chromium,firefox}.{url,sha256}` / `update.{command,guide}`（见 `tools/ci/write_version_endpoint.py`）。
+  - `/res/zeroomega/version.txt`：一行 `vX.Y.Z\n`。
+  - 字段语义：`version` 带 `v` 前缀，取 zip 内 `version` 原样加 `v`（`3.6.4-custom` → `v3.6.4-custom`，后缀不归一化）；`built_at` = 本次运行时刻（Asia/Shanghai）；`updated_at` = 该版本首次可见时间——同版本重跑沿用旧值，换版本才刷新；`downloads.*.sha256` 为包文件流式实算值；`update.command` 取分发清单里第一条带 `command` 的 link，缺失时回退成与 `js/update.js` 的 `FALLBACK_COMMAND` 完全一致的那条并告警；所有 URL 为相对路径。
+- **实现（2026-10-28）**：
+  - 新增 `tools/ci/write_version_endpoint.py`（仅标准库）：`read_zip_version`（zipfile 读 `manifest.json`，正则校验 `v?\d+(\.\d+)*([-+]…)?`）、`file_sha256`（1MiB 分块流式）、与 `<zip>.sha256` 记录比对、原子落盘（`mkstemp` → `chmod 0644` → `os.replace`）、`ensure_link` 幂等补 link。
+  - `tools/ci/refresh_res_manifest.py`：抽出 `atomic_write`（JSON / 纯文本共用一条原子写路径）与 `refresh_index(res)`（总表汇总），供新脚本 import 复用；`main` 行为与输出不变。
+  - 新脚本自己完成 `res/<id>/manifest.json` 的 link 补齐与 `/res/manifest.json` 总表刷新，**不覆盖** version / updated_at / name / description / links（只 append 缺失的版本接口 link），可重复执行。
+  - `.woodpecker.yml` publish：`refresh_res_manifest.py` 之后跑 `write_version_endpoint.py --res /res --id zeroomega --notes-file CHANGELOG.md`（顺带把仓库 CHANGELOG 发布到 `release_notes` 指向的路径）。
+  - `tools/ci/smoke_check.sh`：新增断言——`version.json` 可取且 `version` == 包内 manifest 版本（带 `v`）、`version.txt` 与之一致、下载 URL 指向本包。
+- **校验策略（故意让 CI 失败的情形）**：包缺失 / zip 损坏 / 版本形态非法 / `--notes-file` 不存在 → 退出 1，且**不写任何文件**；sha256 与目录记录不一致 → 用实算值写入（文件内部自洽、便于排查），但打印告警并退出 2，让流水线红掉。
+- **验证（2026-10-28，`/home/xl/tmp/res-sim*` 模拟 /res，未触碰 `/data/static-deploy`）**：12 组场景 56 条断言全过（正常路径字段/权限/换行、包缺失不落盘、两次幂等且保留手写 version/updated_at/name/description、`3.6.4` 与 `3.6.4-custom` 两种形态、sha 记录写错与包被误替换都退出 2、缺 command 用兜底命令、两 writer 并发 + 数百次快速读无半截 JSON、非法版本/损坏 zip/缺 notes 均拒绝、换版本刷新 updated_at、连跑两次除时间戳外一致）；`--help` 正常且无 `--version`。另用本地新构建的真实 3.6.4 包在 `/home/xl/tmp/res-sim` 跑完整流程（含生产清单拷贝、refresh → write 顺序），`smoke_check.sh` 打到本地 HTTP 服务通过。
+- **已知 / 边界**：
+  - 生产落盘需由验收方在发版环境执行（本次改动**未**触碰 `/data/static-deploy`，也未 push / 打 tag）。
+  - 端点只描述「当前最新包」，不保留历史；回溯靠 `CHANGELOG.md` 与目录里的 `*.sha256` 记录。
+  - 端点自身不带缓存头（nginx 默认）；客户端按需加 `no-store` 或查询串（现有 popup 已如此）。
+  - popup 仍读分发包清单；本任务只建端点，不改扩展消费方（避免同批改动扩散）。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -344,6 +371,7 @@ cd omega-target && npm test
 - **临时规则**：隐藏的 `_tempProfile`（SwitchProfile）+ `chrome.storage.session`（**浏览器重启即失效**）；入口有 popup 漏斗（支持“当前子域 / 整个主域”作用域切换，默认当前子域）、请求信息详情、网络监测页、临时规则管理器；临时规则按域名层级排序（子域在前，首条命中优先）；`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）`。
 - **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊（点击切换，只切换视图、不改规则）+ 副标题写明实际路由（本页无规则时写「跟随全局：X」），下面**同一套**情景模式列表。模式与作用域按 host 记在 `localStorage`（`omega.popup.mode:<host>` / `omega.popup.scope:<host>`），重开 popup 保持上次的选择。列表行点击**只应用、幂等**；撤销用列表标题旁的「撤销本页规则 / 撤销主域规则」，整域规则另有提示行 + 「撤销」。切到「全局」点选应用该全局 profile；切到「本页」点选只写入**当前作用域**的那一条临时规则，作用域切换不搬规则；本 host 没有自己的规则时，列表勾选实际生效的继承整域路由，并在两种视图都用提示行说明。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **更新检查**：popup 底部卡片有「检查更新」/「重载扩展」两行（`js/update.js`）。版本与命令来自 `http://100.64.0.88:8088/res/zeroomega/manifest.json`（CI 在 tag 上写），6h 缓存；有新版时行变主色「有新版本 vX · 复制更新命令」，复制后用 `chrome.runtime.reload()` 生效。未打包扩展不能自更新，`<all_urls>` 已覆盖该地址，无需额外权限。
+- **版本查询接口**：`/res/zeroomega/version.json`（机器读，字段与顺序见 R15）+ `version.txt`（一行 `curl` 即得 `vX.Y.Z`）。CI publish 在刷新分发包清单后调用 `tools/ci/write_version_endpoint.py` 原子落盘，版本号取自分发 zip 内的 `manifest.json`；分发包卡片与 `/res/manifest.json` 总表会自动带一条 `version.json` link。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
 
 ## 5. 决策日志（Decision Log）
@@ -367,3 +395,4 @@ cd omega-target && npm test
 | D15 | 模式（全局 / 本页）与作用域按 **host** 记住（`localStorage`），仅在 `pageModeAvailable()` 成立时回到「本页」；「本页」视图勾选**实际生效**的情景模式（本 host 规则 → 否则继承的整域规则），整域提示两种视图都显示；点继承来的那一行只为本 host 写规则 | 每次按「本 host 有无规则」推导模式 + 作用域固定重置为子域（R12 实机反馈“每次打开都回到全局”“子域选择像不生效”） | 模式与作用域只决定下一次点击改哪里，属界面偏好，记住它才不会让人每次都重新选；子域只设过整域规则时，隐藏该提示会让生效中的路由看起来“没设置”，把继承来的规则勾出来既符合实际，又不改动它的作用域 |
 | D16 | popup 列表行点击 = **只应用、幂等**；撤销是列表标题旁显式按钮（「撤销本页规则」/「撤销主域规则」），无可用撤销动作时该按钮不出现；「本页」无生效规则时副标题如实写「跟随全局：X」；临时规则易失性放 tooltip | 保留「再点已生效的行 = 删除」，靠 tooltip 解释（R12 实机后复盘） | 「再点一次就没了」不可预见，且是「勾选没记住」错觉的根源；撤销需要标签、需要可发现，放在标题行只占一行、且不会误触。副标题写明实际生效路由，消除「本页没设置 = 没代理」的误解 |
 | D17 | 更新只做「检查 + 复制命令 + 重载扩展」；版本与命令都取自发布服务器的 `manifest.json`，本地 6h 缓存，失败可重试，剪贴板失败回退发布说明页 | 让扩展自己下载并覆盖自身文件（FSA 目录授权 / native host）；自助 `.crx` + `update_url` | unpacked 扩展无法写自身文件，Windows Chrome 也封了自助 CRX 静默更新；本机已有 tag→CI→`/res/zeroomega/` 的完整发布链，缺的只是「发现新版 + 拿到那条命令 + 让新文件生效」三步，最小实现即可闭环 |
+| D18 | 版本查询端点 = **静态文件** `/res/zeroomega/version.json` + `version.txt`；版本号只从分发 zip 内的 `manifest.json` 推导（脚本没有 `--version`）；`updated_at` 同版本沿用旧值；sha256 用实算值、但记录不一致必须让 CI 失败；URL 全为相对路径；新脚本复用 `refresh_res_manifest` 的原子写与总表汇总 | 直接复用分发包 `manifest.json` 当版本接口 / 让脚本接受 `--version` / 引入应用层 API / 写死 host 的绝对 URL | 分发包清单是给首页渲染的混合结构，字段语义会随展示需求漂移；任何另记的版本号都会与包不一致（tag 与包版本脱钩是真实事故面）；静态只读挂载没有写接口；绝对 URL 换 IP / 域名就失效 |

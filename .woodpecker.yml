@@ -74,6 +74,11 @@ steps:
         python3 tools/ci/refresh_res_manifest.py --res /res --id zeroomega
         --version "$${VERSION}"
         --description "自用定制版（soldier-cv/ZeroOmega custom_main，基线 v3.5.2）：iOS 风格主题、popup 全局/当前分区、子域级临时规则、WebDAV 自动备份恢复。官方商店没有此版本，必须用「解压 + 开发者模式」加载。"
+      # 版本接口的版本号取自分发包自身（不是上面的 $${VERSION}），并顺带把发布说明落到
+      # /res/zeroomega/CHANGELOG.md（version.json 的 release_notes 指向它）
+      - >-
+        python3 tools/ci/write_version_endpoint.py --res /res --id zeroomega
+        --notes-file CHANGELOG.md
       - ls -la /res/zeroomega
 
   - name: smoke

@@ -4,3 +4,4 @@ package-lock.json
 *-release.zip
 *.swp
 .openchamber/
+__pycache__/

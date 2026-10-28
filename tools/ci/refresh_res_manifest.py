@@ -23,13 +23,12 @@ def _now():
     return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8)))
 
 
-def atomic_dump(obj, path):
+def atomic_write(path, text):
     d = os.path.dirname(path) or '.'
-    fd, tmp = tempfile.mkstemp(dir=d, prefix='.manifest-', suffix='.tmp')
+    fd, tmp = tempfile.mkstemp(dir=d, prefix='.tmp-', suffix='.tmp')
     try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as fh:
-            json.dump(obj, fh, ensure_ascii=False, indent=2)
-            fh.write('\n')
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as fh:
+            fh.write(text)
         # mkstemp 默认 0600，/res 是给 nginx 直发的：不放开读权限会整块 403
         os.chmod(tmp, 0o644)
         os.replace(tmp, path)
@@ -37,6 +36,26 @@ def atomic_dump(obj, path):
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+def atomic_dump(obj, path):
+    atomic_write(path, json.dumps(obj, ensure_ascii=False, indent=2) + '\n')
+
+
+def refresh_index(res):
+    """扫描 /res/*/manifest.json 汇总写入 /res/manifest.json，返回收录的 id。"""
+    resources = []
+    for f in sorted(glob.glob(os.path.join(res, '*', 'manifest.json'))):
+        try:
+            with open(f, encoding='utf-8') as fh:
+                resources.append(json.load(fh))
+        except Exception as exc:  # 单个包损坏不影响其余
+            print('skip %s: %s' % (f, exc))
+    atomic_dump({
+        'generated_at': _now().strftime('%Y-%m-%d %H:%M'),
+        'resources': resources,
+    }, os.path.join(res, 'manifest.json'))
+    return [r.get('id') for r in resources]
 
 
 def main():
@@ -61,18 +80,7 @@ def main():
         frag['description'] = a.description
     atomic_dump(frag, frag_path)
 
-    resources = []
-    for f in sorted(glob.glob(os.path.join(a.res, '*', 'manifest.json'))):
-        try:
-            with open(f, encoding='utf-8') as fh:
-                resources.append(json.load(fh))
-        except Exception as exc:  # 单个包损坏不影响其余
-            print('skip %s: %s' % (f, exc))
-    atomic_dump({
-        'generated_at': _now().strftime('%Y-%m-%d %H:%M'),
-        'resources': resources,
-    }, os.path.join(a.res, 'manifest.json'))
-    print('refreshed: %s' % [r.get('id') for r in resources])
+    print('refreshed: %s' % refresh_index(a.res))
 
 
 if __name__ == '__main__':

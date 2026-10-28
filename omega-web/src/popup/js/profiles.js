@@ -60,6 +60,7 @@
     $script.done('om-profile-items');
     updateOtherItems(state);
     bindModeToggle();
+    bindClearRule();
   }
 
   function compareProfile(a, b) {
@@ -322,6 +323,18 @@
     });
   }
 
+  // The one explicit way back from a temp rule. It is offered in the list
+  // heading while the shown scope has a rule of its own, so applying a profile
+  // never doubles as a deletion.
+  function bindClearRule() {
+    var button = document.getElementById('js-clear-rule');
+    if (!button) return;
+    button.addEventListener('click', function() {
+      clearCurrentScopeRule();
+      applyMode();
+    });
+  }
+
   // The toggle only changes which list is shown. It never writes or deletes a
   // temp rule: dropping one here used to take a route away from other sites
   // that were still using it.
@@ -379,6 +392,15 @@
         getMessage('popup_globalProfiles');
     }
 
+    var clearButton = document.getElementById('js-clear-rule');
+    if (clearButton) {
+      var ownRule = pageMode && ruleForKey(scope && scope.key);
+      clearButton.classList.toggle('om-hidden', !ownRule);
+      clearButton.textContent = getMessage(scope && scope.kind === 'domain' ?
+        'popup_clearDomainRule' : 'popup_clearPageRule');
+      clearButton.setAttribute('title', getMessage('popup_tempRuleLifetime'));
+    }
+
     if (scopeRow) {
       var showScope = pageMode && scope &&
         scopeRow.querySelector('.om-segmented');
@@ -394,24 +416,26 @@
     return text.replace(/^\[|\]$/g, '');
   }
 
+  // What the browser is actually doing for this page: with no temp rule in
+  // effect the page simply follows the global profile, so say that instead of
+  // leaving the header with instructions when nothing has been chosen yet.
   function subtitleText() {
     var state = OmegaPopup.state;
     if (OmegaPopup.mode === 'page') {
       var route = effectivePageRule();
       return route ?
         getMessage('popup_pageUsing', [profileTitle(route.profileName)]) :
-        getMessage('popup_pageNotSet');
+        getMessage('popup_pageFollowGlobal', [globalRouteName(state)]);
     }
     if (!state) return '';
-    if (!state.currentProfileName) {
-      return getMessage('popup_globalUsing',
-        [getMessage('popup_externalProfile')]);
-    }
-    if (state.isSystemProfile) {
-      return getMessage('popup_globalUsing', [profileTitle('system')]);
-    }
-    return getMessage('popup_globalUsing',
-      [profileTitle(state.currentProfileName)]);
+    return getMessage('popup_globalUsing', [globalRouteName(state)]);
+  }
+
+  function globalRouteName(state) {
+    if (!state) return '';
+    if (!state.currentProfileName) return getMessage('popup_externalProfile');
+    if (state.isSystemProfile) return profileTitle('system');
+    return profileTitle(state.currentProfileName);
   }
 
   // A domain-wide temp rule still decides this host, but it also decides
@@ -494,21 +518,15 @@
     return state.isSystemProfile ? 'system' : state.currentProfileName;
   }
 
-  // A click writes that profile to the scope currently shown, and nothing
-  // else. Clicking the row that is already this scope's own rule removes that
-  // one rule; it used to do nothing, which left the capsule as the only way
-  // back and that way deleted every rule of the page. A profile inherited from
-  // the wider scope is marked as in effect but is not this scope's rule, so a
-  // click pins it here instead of dropping the wider one.
+  // A click applies that profile to the scope currently shown, and nothing
+  // else. It is idempotent: re-applying the profile that is already there
+  // changes nothing. Removing a temp rule has its own button in the list
+  // heading, because a row that silently deleted a rule on the second click
+  // made an applied route look like it had never been saved.
   function applyPageProfile(profileName) {
     var scope = OmegaPopup.pageScope;
     if (!scope || profileName === 'system') return;
-    var rule = ruleForKey(scope.key);
-    if (rule && rule.profileName === profileName) {
-      clearCurrentScopeRule();
-    } else {
-      writePageRoute(scope.key, profileName);
-    }
+    writePageRoute(scope.key, profileName);
     applyMode();
   }
 

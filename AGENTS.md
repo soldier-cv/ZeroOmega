@@ -264,6 +264,38 @@
     - 点已生效行仍只撤销**这一条**（D14 语义保留），撤销后若存在整域规则则自动勾回该整域路由，不会显示成「无路由」；
     - 冷启动（杀掉 service worker 后重开 popup）与原有「子域 / 主域各写一条规则、互不搬运」用例均无回归。
 - **影响 / 修订**：D14 的「继承来的整域规则在『本页』视图不显示」被本决策修订（改为显示、但点它只写本 host 规则）；「一次点击只碰当前作用域那一条」「切到全局不删临时规则」等其余 D14 约束不变。
+- **再次修订（2026-10-28，见 R13 / D16）**：本条验证里「点已生效行仍只撤销这一条」已改——行点击一律只应用，撤销改为列表标题旁的显式按钮；整域提示行里的「撤销」保留。
+
+### R13. popup 交互收敛：点击即应用、撤销显式化、说明实际路由 — 状态：**构建通过，真实 Chromium 端到端校验通过，待实机确认**（2026-10-28）
+
+- **背景**：华总要求「优化交互设计，站在用户角度分析一遍再做优化」。上一版（R12 之后）逐条按用户视角复盘，发现以下问题：
+  1. **再点一次已生效的行会静默删掉规则**——无从预见、没有任何提示，是「勾选没记住」错觉的主要来源（实机很容易踩到：想「确认一下」再点一遍，规则就没了）。
+  2. **「本页」未设置时只说「在下方选一个情景模式」**，没说明此刻实际走什么——其实临时规则不存在时 PAC 落在全局情景模式，用户会以为本页没有代理。
+  3. **「撤销」只在提示行里出现一次**，且只覆盖整域规则；本页自己的规则只能靠「再点一次」（见第 1 条）。
+  4. 临时规则是会话级（浏览器重启即失效），界面上无处说明。
+- **已确认决策（D16）**：列表行点击 = **只应用、幂等**，永不做删除；撤销改为列表标题右侧的显式动作（「撤销本页规则」/「撤销主域规则」，仅在当前作用域确有规则时出现）；「本页」无生效规则时副标题写「跟随全局：X」，如实反映 PAC 回落；临时规则易失性放进行内 tooltip。
+- **实现（2026-10-28）**：
+  - `omega-web/src/popup/index.html`：列表标题改为 `.om-section-head`（标题 + `#js-clear-rule` 按钮）；
+  - `omega-web/src/popup/js/profiles.js`：`applyPageProfile` 去掉「同 profile 即删除」分支，一律走 `writePageRoute`；新增 `bindClearRule`；`applyMode` 维护撤销按钮的可见性与文案（按作用域区分本页 / 主域）；`subtitleText` 抽出 `globalRouteName`，本页无规则时用 `popup_pageFollowGlobal` 显示跟随的全局情景模式；
+  - `omega-web/src/popup/css/index.css`：`.om-section-head` / `.om-section-action` 样式；标题省略号仍在；
+  - i18n（`en_US` + `zh_CN`）：新增 `popup_pageFollowGlobal` / `popup_clearPageRule` / `popup_clearDomainRule` / `popup_tempRuleLifetime`；改写 `popup_modeHelp`；删除 `popup_pageNotSet`。
+- **验证（2026-10-28）**：真实 Chromium + 构建产物的端到端 harness（同 R12）逐状态核对：本页未设置 → 「跟随全局：auto switch」且不勾任何行；应用 `proxy` → 勾选 + 「撤销本页规则」；**再点同一行规则不变**（后台 `getTempRules` 仍为 `postest.findfine.com=proxy`）；改点 `direct` → 替换；点「撤销本页规则」→ 回到跟随全局；主域作用域 → 「撤销主域规则」；子域只有继承的整域规则时 → 勾选 + 提示行 + 不出现撤销按钮（没有自己的规则可撤）。截图核对标题行与撤销按钮对齐。
+- **修订**：R11 / D14 的「再点已生效的行只撤销这一条」被本决策取代（撤销改为显式按钮）；「一次点击只碰当前作用域那一条」「切到全局不删规则」等其余约束不变。
+
+### R14. 扩展内更新检查（发布清单 → 复制命令 → 重载扩展） — 状态：**构建通过，真实服务器与真实 Chromium 校验通过，待实机确认**（2026-10-28）
+
+- **背景**：更新一直靠手动记命令；华总问「是否能够集成更新，目前有个命令能够从我本地服务器拉最新的」。发布侧其实已经自动化：`.woodpecker.yml` 在 `v*` tag 上构建 → `npm run release` → 把 `chromium-release.zip` / `firefox-release.zip` + sha256 拷到 `/res/zeroomega/`，并跑 `tools/ci/refresh_res_manifest.py` 写 `manifest.json`（含 `version` 与 `links[0].command`）。
+- **技术边界（重要）**：未打包（unpacked）扩展**不能改写自身文件**；Windows 版 Chrome 也已封掉自助 `.crx` 静默更新（INSTALL.md 里同样记着这一点）。所以「集成」只能是：检查版本 + 交给人执行同一条命令 + 让新文件生效，而不是静默自更新。
+- **已确认决策（D17）**：popup 底部卡片加两行——「检查更新」常驻（无新版时显示「已是最新（vX）」），有新版时变为主色「有新版本 vX · 复制更新命令」，点击复制**服务器清单里给的命令**（不硬编码，回退用同一套下载+解压命令）；复制后用 `chrome.runtime.reload()` 提供「重载扩展」行完成最后一步。检查结果缓存在 `localStorage['omega.update']`，**6 小时**内复用缓存（打开 popup 不做无谓请求），可手动点击强制重检；失败显示「检查更新失败，点此重试」；剪贴板被拒时回退打开 `INSTALL.md`。版本比较只取数字段（`v3.6.4-custom` 与 `3.6.4` 等价）。
+- **实现（2026-10-28）**：
+  - 新增 `omega-web/src/popup/js/update.js`（自包含；`$script.ready('om-target')` 后初始化）：`fetch` `http://100.64.0.88:8088/res/zeroomega/manifest.json`（`cache: 'no-store'`）、`isNewer`、状态机（checking / available / copied / guide / latest / failed）、`navigator.clipboard` + textarea 回退、`chrome.runtime.reload()`；
+  - `omega-web/src/popup/index.html`：底部卡片新增 `#js-update-row` / `#js-reload-row`（`.om-option-row`）；
+  - `omega-web/src/popup/js/loader.js`：把 `js/update.js` 加入 `om-main` 脚本组；
+  - `omega-web/src/popup/css/index.css`：`.om-update-new`（主色行 / 主色图标）、`.om-nav-item.om-disabled`、`.om-option-row` 文本省略号，补 `glyphicon-cloud-download`（`\e197`）与 `glyphicon-repeat`（`\e030`）；
+  - i18n（`en_US` + `zh_CN`）：`popup_checkUpdate` / `popup_checkUpdateHelp` / `popup_updateChecking` / `popup_updateAvailable` / `popup_updateHelp` / `popup_updateCopied` / `popup_updateOpenedGuide` / `popup_updateLatest` / `popup_updateFailed` / `popup_reloadExtension` / `popup_reloadHelp`。
+  - **无需改 manifest**：`host_permissions` 已是 `<all_urls>`，覆盖 `http://100.64.0.88:8088/*`（Chrome / Firefox 均可跨域取扩展页数据）。
+- **验证（2026-10-28）**：本地版本 3.6.3 时行显示「已是最新（v3.6.3）」，缓存里写入的是**服务器清单里的命令原文**；离线（CDP 断网）+ 清缓存后点击 → 「检查更新失败，点此重试」，可再点重试；注入更高版本缓存 → 行变主色「有新版本 v9.9.9 · 复制更新命令」并出现「重载扩展」行，点击后剪贴板写入成功、文案变「已复制，粘贴到 PowerShell 执行」、tooltip 换成下一步提示。`npm run build` 全绿，构建产物与源逐字节一致。
+- **风险 / 已知**：`chrome.runtime.reload()` 会让 popup 关闭，属预期；Firefox 侧同样只做检查（临时加载的扩展重载后仍在，但 Firefox 需要重新「临时载入」才拿到新文件——实现未区分，保持同一套文案）。
 
 ## 4. 项目基础架构
 
@@ -310,7 +342,8 @@ cd omega-target && npm test
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则**：隐藏的 `_tempProfile`（SwitchProfile）+ `chrome.storage.session`（**浏览器重启即失效**）；入口有 popup 漏斗（支持“当前子域 / 整个主域”作用域切换，默认当前子域）、请求信息详情、网络监测页、临时规则管理器；临时规则按域名层级排序（子域在前，首条命中优先）；`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）`。
-- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊（点击切换，只切换视图、不改规则）+ 副标题写明实际路由，下面**同一套**情景模式列表。模式与作用域按 host 记在 `localStorage`（`omega.popup.mode:<host>` / `omega.popup.scope:<host>`），重开 popup 保持上次的选择。切到「全局」点选应用该全局 profile；切到「本页」点选只写入**当前作用域**的那一条临时规则（再点这条已生效的行只撤销这一条），作用域切换不搬规则；本 host 没有自己的规则时，列表勾选实际生效的继承整域路由，并在两种视图都用提示行说明（点它只为本 host 写规则，「撤销」才动整域那条）。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
+- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊（点击切换，只切换视图、不改规则）+ 副标题写明实际路由（本页无规则时写「跟随全局：X」），下面**同一套**情景模式列表。模式与作用域按 host 记在 `localStorage`（`omega.popup.mode:<host>` / `omega.popup.scope:<host>`），重开 popup 保持上次的选择。列表行点击**只应用、幂等**；撤销用列表标题旁的「撤销本页规则 / 撤销主域规则」，整域规则另有提示行 + 「撤销」。切到「全局」点选应用该全局 profile；切到「本页」点选只写入**当前作用域**的那一条临时规则，作用域切换不搬规则；本 host 没有自己的规则时，列表勾选实际生效的继承整域路由，并在两种视图都用提示行说明。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
+- **更新检查**：popup 底部卡片有「检查更新」/「重载扩展」两行（`js/update.js`）。版本与命令来自 `http://100.64.0.88:8088/res/zeroomega/manifest.json`（CI 在 tag 上写），6h 缓存；有新版时行变主色「有新版本 vX · 复制更新命令」，复制后用 `chrome.runtime.reload()` 生效。未打包扩展不能自更新，`<all_urls>` 已覆盖该地址，无需额外权限。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
 
 ## 5. 决策日志（Decision Log）
@@ -332,3 +365,5 @@ cd omega-target && npm test
 | D13 | popup：**一个状态胶囊**（只显示 `全局` / `本页`，点击切换）+ 一套列表；切到「全局」清本页临时规则；本页模式隐藏系统代理与「添加条件」；子域 / 主域**共用一条路由**（切作用域搬规则，不重选）；页标题随作用域显示完整 host 或主域名。主题：**三套调色板 × 浅 / 深 / 跟随系统**（`ios-*` / `morandi-*` / `claude-*`），popup 全部改用主题变量 | 保留 R9 的双分段按钮；保留「仅全局」旁注；两套独立的作用域规则；继续只用 `default-*` 一套 iOS 主题 | R9 实机后华总要求「一个按钮、点击切换」，旁注与并列状态制造歧义；两条独立规则会逼用户重选 profile，而实际场景只是换作用域；主题分散在两套界面才导致“设置页好看、弹窗刺眼”，统一变量后一处改动两处生效 |
 | D14 | popup 一次点击只碰**当前作用域的那一条**临时规则：作用域切换不搬规则；切到「全局」与点全局行都**不删除**临时规则；「本页」只认本 host 自己的规则，继承来的整域规则只在「全局」视图以提示 + 显式「撤销」呈现；再点已生效的行只撤销这一条 | 维持 D13 的“共用一条路由 / 切全局即清除”（R10 实机证明会把别的子域正在用的路由删掉或改写） | 临时规则是 PAC 第一层且删了即失。D13 想消除“高亮与实际路由不一致”，但代价是一个页面的一次点击改了其它站点的路由，直接导致“本来可用的变得不可用”。高亮不一致改为用文案说明（副标题 + 整域覆盖提示），不再靠删除来对齐 |
 | D15 | 模式（全局 / 本页）与作用域按 **host** 记住（`localStorage`），仅在 `pageModeAvailable()` 成立时回到「本页」；「本页」视图勾选**实际生效**的情景模式（本 host 规则 → 否则继承的整域规则），整域提示两种视图都显示；点继承来的那一行只为本 host 写规则 | 每次按「本 host 有无规则」推导模式 + 作用域固定重置为子域（R12 实机反馈“每次打开都回到全局”“子域选择像不生效”） | 模式与作用域只决定下一次点击改哪里，属界面偏好，记住它才不会让人每次都重新选；子域只设过整域规则时，隐藏该提示会让生效中的路由看起来“没设置”，把继承来的规则勾出来既符合实际，又不改动它的作用域 |
+| D16 | popup 列表行点击 = **只应用、幂等**；撤销是列表标题旁显式按钮（「撤销本页规则」/「撤销主域规则」），无可用撤销动作时该按钮不出现；「本页」无生效规则时副标题如实写「跟随全局：X」；临时规则易失性放 tooltip | 保留「再点已生效的行 = 删除」，靠 tooltip 解释（R12 实机后复盘） | 「再点一次就没了」不可预见，且是「勾选没记住」错觉的根源；撤销需要标签、需要可发现，放在标题行只占一行、且不会误触。副标题写明实际生效路由，消除「本页没设置 = 没代理」的误解 |
+| D17 | 更新只做「检查 + 复制命令 + 重载扩展」；版本与命令都取自发布服务器的 `manifest.json`，本地 6h 缓存，失败可重试，剪贴板失败回退发布说明页 | 让扩展自己下载并覆盖自身文件（FSA 目录授权 / native host）；自助 `.crx` + `update_url` | unpacked 扩展无法写自身文件，Windows Chrome 也封了自助 CRX 静默更新；本机已有 tag→CI→`/res/zeroomega/` 的完整发布链，缺的只是「发现新版 + 拿到那条命令 + 让新文件生效」三步，最小实现即可闭环 |

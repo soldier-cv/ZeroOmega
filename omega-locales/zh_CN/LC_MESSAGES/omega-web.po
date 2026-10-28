@@ -1073,7 +1073,7 @@ msgid "popup_modePage"
 msgstr "本页"
 
 msgid "popup_modeHelp"
-msgstr "点击切换下方列表改的是什么。两边都不会删除临时规则；再点一次已生效的那一行，只撤销这一条。"
+msgstr "点击切换下方列表改的是什么：所有标签页，或只对本页生效的临时规则。撤销规则用列表标题旁的按钮。"
 
 msgid "popup_globalProfiles"
 msgstr "全局情景模式"
@@ -1087,14 +1087,56 @@ msgstr "所有标签页使用 $PROFILE$"
 msgid "popup_pageUsing"
 msgstr "本页使用 $PROFILE$"
 
+msgid "popup_pageFollowGlobal"
+msgstr "跟随全局：$PROFILE$"
+
+msgid "popup_clearPageRule"
+msgstr "撤销本页规则"
+
+msgid "popup_clearDomainRule"
+msgstr "撤销主域规则"
+
+msgid "popup_tempRuleLifetime"
+msgstr "临时规则只在本次浏览器会话内有效"
+
 msgid "popup_domainOverride"
 msgstr "同时受临时规则覆盖：$PROFILE$，作用于 $DOMAIN$ 下的所有站点"
 
 msgid "popup_domainOverrideClear"
 msgstr "撤销"
 
-msgid "popup_pageNotSet"
-msgstr "在下方选一个情景模式，只对上方所选范围生效。"
+msgid "popup_checkUpdate"
+msgstr "检查更新"
+
+msgid "popup_checkUpdateHelp"
+msgstr "向发布服务器确认是否有新版本"
+
+msgid "popup_updateChecking"
+msgstr "正在检查更新…"
+
+msgid "popup_updateAvailable"
+msgstr "有新版本 $VERSION$ · 复制更新命令"
+
+msgid "popup_updateHelp"
+msgstr "复制安装/更新命令；在 PowerShell 执行后再点下面的「重载扩展」"
+
+msgid "popup_updateCopied"
+msgstr "已复制，粘贴到 PowerShell 执行"
+
+msgid "popup_updateOpenedGuide"
+msgstr "已打开发布说明，请从页面复制命令"
+
+msgid "popup_updateLatest"
+msgstr "已是最新（$VERSION$）"
+
+msgid "popup_updateFailed"
+msgstr "检查更新失败，点此重试"
+
+msgid "popup_reloadExtension"
+msgstr "重载扩展"
+
+msgid "popup_reloadHelp"
+msgstr "让刚解压的新文件生效"
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$个资源未加载"

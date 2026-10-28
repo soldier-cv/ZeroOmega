@@ -57,13 +57,51 @@ body.om-popup {
 }
 
 .om-section-title {
-  margin: 0 0 6px 13px;
+  margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--base03, #8e8e93);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The list heading also carries the one explicit way back from a page rule.
+ * Undoing lives here, not on the row, so clicking an applied row is never a
+ * deletion. */
+.om-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 13px 6px;
+}
+
+.om-section-head .om-section-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.om-section-action {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--primaryColor, #007aff);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.om-section-action:hover {
+  opacity: .75;
+}
+
+.om-section-action:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--primaryColor, #007aff);
 }
 
 .om-card {
@@ -377,6 +415,33 @@ body.om-popup {
   background-color: var(--base03, #8e8e93);
 }
 
+/* Option rows can carry a long sentence (the update state); clip it instead of
+ * widening the popup. */
+.om-option-row > a > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Update rows: a plain option row until the release server reports a newer
+ * build, then the row itself becomes the copy-the-command action. */
+.om-nav-item.om-update-new > a,
+.om-popup .om-nav-item.om-update-new > a:hover {
+  color: var(--primaryColor, #007aff);
+}
+
+.om-nav-item.om-update-new > a > .glyphicon {
+  color: #fff;
+  background-color: var(--primaryColor, #007aff);
+}
+
+.om-nav-item.om-disabled > a,
+.om-popup .om-nav-item.om-disabled > a:hover {
+  color: var(--base03, #8e8e93);
+  background-color: transparent;
+  cursor: default;
+}
+
 #js-direct > .glyphicon:not(.om-item-mark) {
   background-color: #34c759;
 }
@@ -578,6 +643,12 @@ body.om-popup {
 }
 .glyphicon-chevron-down:before {
     content: "\e114";
+}
+.glyphicon-cloud-download:before {
+    content: "\e197";
+}
+.glyphicon-repeat:before {
+    content: "\e030";
 }
 .glyphicon-ok:before {
     content: "\e013";

@@ -39,7 +39,11 @@
       </div>
     </li>
     <li class="om-section">
-      <div class="om-section-title" id="js-profiles-caption"></div>
+      <div class="om-section-head">
+        <div class="om-section-title" id="js-profiles-caption"></div>
+        <button type="button" class="om-section-action om-hidden"
+          id="js-clear-rule"></button>
+      </div>
       <div class="om-card" id="js-profiles-card">
         <div class="om-nav-item">
           <a href="#" id="js-direct" role="button">
@@ -67,6 +71,18 @@
           <a href="../options.html" target="_blank" id="js-option" role="button">
             <span class="glyphicon glyphicon-wrench"></span>
             <span id="js-option-label"></span>
+          </a>
+        </div>
+        <div class="om-nav-item om-option-row" id="js-update-row">
+          <a href="#" id="js-update" role="button">
+            <span class="glyphicon glyphicon-cloud-download"></span>
+            <span id="js-update-label"></span>
+          </a>
+        </div>
+        <div class="om-nav-item om-option-row om-hidden" id="js-reload-row">
+          <a href="#" id="js-reload" role="button">
+            <span class="glyphicon glyphicon-repeat"></span>
+            <span id="js-reload-label"></span>
           </a>
         </div>
       </div>

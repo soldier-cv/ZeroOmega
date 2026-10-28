@@ -1207,7 +1207,7 @@ msgid "popup_modePage"
 msgstr "This page"
 
 msgid "popup_modeHelp"
-msgstr "Click to switch what the list below changes. Neither side removes a temp rule; click the active row again to remove just that one."
+msgstr "Click to switch what the list below changes: every tab, or a temp rule for this page only. Removing a rule uses the button above the list."
 
 msgid "popup_globalProfiles"
 msgstr "Global profiles"
@@ -1221,14 +1221,56 @@ msgstr "Using $PROFILE$ for every tab"
 msgid "popup_pageUsing"
 msgstr "Using $PROFILE$ for this site"
 
+msgid "popup_pageFollowGlobal"
+msgstr "Following the global profile: $PROFILE$"
+
+msgid "popup_clearPageRule"
+msgstr "Remove page rule"
+
+msgid "popup_clearDomainRule"
+msgstr "Remove domain rule"
+
+msgid "popup_tempRuleLifetime"
+msgstr "Temp rules last until the browser restarts"
+
 msgid "popup_domainOverride"
 msgstr "Also covered by a temp rule: $PROFILE$, for every site under $DOMAIN$"
 
 msgid "popup_domainOverrideClear"
 msgstr "Remove"
 
-msgid "popup_pageNotSet"
-msgstr "Pick a profile below. It applies only to the scope shown above."
+msgid "popup_checkUpdate"
+msgstr "Check for updates"
+
+msgid "popup_checkUpdateHelp"
+msgstr "Ask the release server whether a newer build exists"
+
+msgid "popup_updateChecking"
+msgstr "Checking for updates…"
+
+msgid "popup_updateAvailable"
+msgstr "Update $VERSION$ available · copy the command"
+
+msgid "popup_updateHelp"
+msgstr "Copies the install command. Run it in PowerShell, then use Reload extension below."
+
+msgid "popup_updateCopied"
+msgstr "Command copied — paste it into PowerShell"
+
+msgid "popup_updateOpenedGuide"
+msgstr "Install guide opened — copy the command from there"
+
+msgid "popup_updateLatest"
+msgstr "Up to date ($VERSION$)"
+
+msgid "popup_updateFailed"
+msgstr "Update check failed — click to retry"
+
+msgid "popup_reloadExtension"
+msgstr "Reload extension"
+
+msgid "popup_reloadHelp"
+msgstr "Picks up the files you just extracted"
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$ failed resources"

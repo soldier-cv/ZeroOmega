@@ -31,6 +31,51 @@ section
 section
   p
     | {{'about_version' | tr:[version]}}
+section.settings-group(ng-if='update')
+  h3 {{'options_group_update' | tr}}
+  p(ng-if='update.available')
+    span.label.label-primary {{'options_updateAvailable' | tr:[update.latest]}}
+  p(ng-if='!update.available && update.latest && !update.error')
+    span.text-success
+      span.glyphicon.glyphicon-ok
+      = ' '
+      | {{'options_updateLatest' | tr:[update.current]}}
+  p.text-warning(ng-if='update.error')
+    span.glyphicon.glyphicon-warning-sign
+    = ' '
+    | {{'options_updateFailed' | tr}}
+    | {{' (' + update.error + ')'}}
+  div(ng-if='update.available')
+    ol.update-steps
+      li {{'options_updateStepCopy' | tr}}
+      li {{'options_updateStepRun' | tr}}
+      li {{'options_updateStepReload' | tr}}
+    pre.update-command {{update.command}}
+  p
+    button.btn.btn-primary(ng-if='update.available' ng-click='copyUpdateCommand()')
+      span.glyphicon.glyphicon-copy
+      = ' '
+      | {{(updateCopied ? 'options_updateCopied' : 'options_updateCopy') | tr}}
+    = ' '
+    button.btn.btn-default(ng-if='update.available' ng-click='reloadExtension()')
+      span.glyphicon.glyphicon-repeat
+      = ' '
+      | {{'options_updateReload' | tr}}
+    = ' '
+    button.btn.btn-default(ng-click='checkUpdate()' ladda='updateChecking'
+      data-spinner-color="currentColor")
+      span.glyphicon.glyphicon-refresh
+      = ' '
+      | {{'options_updateCheckNow' | tr}}
+  p.help-block
+    span.glyphicon.glyphicon-time
+    = ' '
+    | {{'options_updateAuto' | tr}}
+    span(ng-if='update.checkedAt')
+      = ' '
+      | {{'options_updateLastChecked' | tr}}
+      | {{update.checkedAt | date:'medium'}}
+section
   p.text-warning
     span.glyphicon.glyphicon-info-sign
     = ' '

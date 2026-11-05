@@ -5,6 +5,12 @@ Promise = OmegaTarget.Promise
 COMMIT_FILENAME = 'zeroomega-commit.txt'
 OPTION_FILE_PREFIX = 'zeroomega-'
 OPTION_FILE_SUFFIX = '.json'
+# Page rules live in a small file of their own: they change on popup clicks,
+# far more often than options, and must never ride on a full options restore.
+TEMP_RULES_FILENAME = 'zeroomega-temprules.json'
+TEMP_RULES_PULL_ALARM = 'omega.tempRulesPull'
+TEMP_RULES_PULL_MINUTES = 10
+TEMP_RULES_PUSH_DEBOUNCE = 1000
 
 # Debounce (ms) applied to auto backups after options change.
 AUTO_BACKUP_DEBOUNCE = 2000
@@ -174,6 +180,82 @@ class WebDavClient
       result += chars[byte % 16]
     return result
 
+  ###*
+  # @returns {Promise<{rules: Object, updatedAt: number, etag: ?string}>}
+  # An empty set when the file does not exist yet.
+  ###
+  getTempRules: ->
+    @_fetch(@baseUri + TEMP_RULES_FILENAME, {cache: 'no-store'}).then((res) ->
+      if res.status == 404
+        return {rules: {}, updatedAt: 0, etag: null}
+      if not res.ok
+        throw new Error("WebDAV getTempRules failed: " + res.status)
+      etag = res.headers.get('ETag')
+      res.json().then((data) ->
+        rules: data?.rules or {}
+        updatedAt: data?.updatedAt or 0
+        etag: etag
+      )
+    )
+
+  ###*
+  # Upload the rules. With an ETag the server rejects the write (412) if
+  # another device changed the file after it was read, so the caller can pull
+  # again instead of overwriting.
+  ###
+  putTempRules: (rules, updatedAt, etag) ->
+    headers = {'Content-Type': 'application/json'}
+    # If-Match needs a strong ETag; a weak one never matches and would turn
+    # every write into a conflict.
+    headers['If-Match'] = etag if etag and etag.indexOf('W/') != 0
+    @_fetch(@baseUri + TEMP_RULES_FILENAME, {
+      method: 'PUT'
+      headers: headers
+      body: JSON.stringify({rules, updatedAt}, null, 2)
+    }).then((res) ->
+      return {conflict: true} if res.status == 412
+      if not res.ok
+        throw new Error("WebDAV putTempRules failed: " + res.status)
+      return {conflict: false}
+    )
+
+
+sameRules = (a, b) ->
+  a ?= {}
+  b ?= {}
+  keys = Object.keys(a)
+  return false unless keys.length == Object.keys(b).length
+  for key in keys
+    return false unless a[key] == b[key]
+  true
+
+###*
+# Three-way merge of page rules, per site. `base` is the copy last agreed with
+# the server; null means this device has never synced, in which case local
+# rules are added on top of the remote ones.
+###
+mergeTempRules = (base, local, remote) ->
+  local ?= {}
+  remote ?= {}
+  merged = {}
+  keys = {}
+  keys[key] = true for own key of local
+  keys[key] = true for own key of remote
+  keys[key] = true for own key of base ? {}
+  for own key of keys
+    localValue = local[key]
+    remoteValue = remote[key]
+    if not base?
+      value = localValue ? remoteValue
+    else
+      baseValue = base[key]
+      localChanged = localValue != baseValue
+      remoteChanged = remoteValue != baseValue
+      value = if localChanged then localValue
+      else if remoteChanged then remoteValue
+      else baseValue
+    merged[key] = value if value?
+  merged
 
 ###*
 # Options backup manager: pushes/pulls the whole options object to a WebDAV
@@ -189,6 +271,9 @@ class OptionsBackup
     @_restoreInProgress = false
     @_suppressBackupUntil = 0
     @_timer = null
+    @_tempRulesTimer = null
+    @_tempRulesSync = null
+    @_tempRulesDirty = false
 
   getConfig: ->
     @_state.get({
@@ -196,6 +281,7 @@ class OptionsBackup
       'optionsBackup.username': ''
       'optionsBackup.password': ''
       'optionsBackup.autoBackup': false
+      'optionsBackup.syncTempRules': true
       'optionsBackup.lastBackup': null
       'optionsBackup.lastBackupCommit': ''
       'optionsBackup.lastBackupState': ''
@@ -204,6 +290,7 @@ class OptionsBackup
       username: raw['optionsBackup.username'] or ''
       password: raw['optionsBackup.password'] or ''
       autoBackup: !!raw['optionsBackup.autoBackup']
+      syncTempRules: raw['optionsBackup.syncTempRules'] != false
       lastBackup: raw['optionsBackup.lastBackup'] or null
       lastBackupCommit: raw['optionsBackup.lastBackupCommit'] or ''
       lastBackupState: raw['optionsBackup.lastBackupState'] or ''
@@ -211,9 +298,13 @@ class OptionsBackup
 
   setConfig: (config = {}) ->
     updates = {}
-    for key in ['uri', 'username', 'password', 'autoBackup']
+    for key in ['uri', 'username', 'password', 'autoBackup', 'syncTempRules']
       updates['optionsBackup.' + key] = config[key] if config[key]?
-    @_state.set(updates)
+    @_state.set(updates).then(=>
+      # A newly configured server is pulled right away, so rules set on other
+      # devices show up without waiting for the next alarm.
+      @syncTempRules().catch(-> return)
+    )
 
   ###*
   # Hook options changes to schedule auto backups. `_setOptions` is the single
@@ -229,6 +320,19 @@ class OptionsBackup
       if changes and (args?.persist ? true)
         @scheduleAutoBackup()
       result
+    @options.onTempRulesChanged = => @scheduleTempRulesPush()
+    # Re-creating an alarm resets its timer, and this runs on every service
+    # worker start; only create it when it is missing.
+    chrome.alarms.get TEMP_RULES_PULL_ALARM, (alarm) ->
+      return if alarm
+      chrome.alarms.create(TEMP_RULES_PULL_ALARM,
+        periodInMinutes: TEMP_RULES_PULL_MINUTES)
+    chrome.alarms.onAlarm.addListener (alarm) =>
+      return unless alarm.name == TEMP_RULES_PULL_ALARM
+      @syncTempRules().catch(-> return)
+    # Startup pull: whatever other devices changed while this browser was
+    # closed is in place before the first page is routed by an old rule.
+    @options.ready.then(=> @syncTempRules()).catch(-> return)
 
   scheduleAutoBackup: ->
     return if @_backupInProgress or @_restoreInProgress
@@ -304,6 +408,85 @@ class OptionsBackup
       throw e
     )
 
+  # ---- Page rule (temp rule) sync -----------------------------------------
+  #
+  # Every change is pull → merge → push; each device also pulls on start and
+  # every TEMP_RULES_PULL_MINUTES. The merge is three-way per site against
+  # the copy last agreed with the server ('tempRulesBase'): a site this device
+  # did not touch takes the remote value, a site only this device changed
+  # keeps the local value, and when both changed the same site the local
+  # click wins, since it is the newest intent the user expressed here. The
+  # PUT carries If-Match, so a write that raced another device is retried on
+  # top of the newer file instead of overwriting it.
+
+  scheduleTempRulesPush: ->
+    @_tempRulesDirty = true
+    clearTimeout(@_tempRulesTimer) if @_tempRulesTimer?
+    @_tempRulesTimer = setTimeout(=>
+      @_tempRulesTimer = null
+      @syncTempRules().catch((e) ->
+        console.error('ZeroOmega: page rule sync failed:', e)
+      )
+    , TEMP_RULES_PUSH_DEBOUNCE)
+
+  syncTempRules: ->
+    # One sync at a time; a change made during a sync triggers another one.
+    if @_tempRulesSync
+      return @_tempRulesSync.then(=>
+        @syncTempRules() if @_tempRulesDirty
+      )
+    @_tempRulesSync = @_syncTempRulesOnce(3).finally(=>
+      @_tempRulesSync = null
+    )
+
+  _syncTempRulesOnce: (attemptsLeft) ->
+    client = null
+    @getConfig().then((config) =>
+      return null unless config.uri and config.syncTempRules
+      client = new WebDavClient()
+      client.init(config)
+      @options.ready.then(=>
+        Promise.join(
+          client.getTempRules()
+          @_state.get({tempRulesBase: null})
+          (remote, {tempRulesBase}) -> {remote, base: tempRulesBase}
+        )
+      )
+    ).then((ctx) =>
+      return unless ctx
+      @_tempRulesDirty = false
+      local = @options.exportTempRules()
+      base = ctx.base
+      remote = ctx.remote.rules
+      merged = mergeTempRules(base, local, remote)
+      tasks = []
+      unless sameRules(merged, local)
+        tasks.push(@options.replaceTempRules(merged, notify: false))
+      if sameRules(merged, remote)
+        tasks.push(@_state.set({tempRulesBase: merged}))
+        return Promise.all(tasks).then(=> @_setTempRulesResult('success'))
+      Promise.all(tasks).then(->
+        client.putTempRules(merged, Date.now(), ctx.remote.etag)
+      ).then(({conflict}) =>
+        if conflict
+          throw new Error('WebDAV page rules changed during sync.') if (
+            attemptsLeft <= 1)
+          return @_syncTempRulesOnce(attemptsLeft - 1)
+        @_state.set({tempRulesBase: merged}).then(=>
+          @_setTempRulesResult('success')
+        )
+      )
+    ).catch((e) =>
+      @_tempRulesDirty = true
+      @_setTempRulesResult('fail: ' + (e.message or e)).then(-> throw e)
+    )
+
+  _setTempRulesResult: (state) ->
+    @_state.set({
+      'optionsBackup.lastTempRulesSync': Date.now()
+      'optionsBackup.lastTempRulesSyncState': state
+    })
+
   _setResult: (state, commitId) ->
     updates =
       'optionsBackup.lastBackup': Date.now()
@@ -312,3 +495,4 @@ class OptionsBackup
     @_state.set(updates)
 
 module.exports = OptionsBackup
+module.exports.mergeTempRules = mergeTempRules

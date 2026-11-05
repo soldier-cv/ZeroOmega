@@ -415,33 +415,6 @@ body.om-popup {
   background-color: var(--base03, #8e8e93);
 }
 
-/* Option rows can carry a long sentence (the update state); clip it instead of
- * widening the popup. */
-.om-option-row > a > span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Update rows: a plain option row until the release server reports a newer
- * build, then the row itself becomes the copy-the-command action. */
-.om-nav-item.om-update-new > a,
-.om-popup .om-nav-item.om-update-new > a:hover {
-  color: var(--primaryColor, #007aff);
-}
-
-.om-nav-item.om-update-new > a > .glyphicon {
-  color: #fff;
-  background-color: var(--primaryColor, #007aff);
-}
-
-.om-nav-item.om-disabled > a,
-.om-popup .om-nav-item.om-disabled > a:hover {
-  color: var(--base03, #8e8e93);
-  background-color: transparent;
-  cursor: default;
-}
-
 #js-direct > .glyphicon:not(.om-item-mark) {
   background-color: #34c759;
 }
@@ -643,12 +616,6 @@ body.om-popup {
 }
 .glyphicon-chevron-down:before {
     content: "\e114";
-}
-.glyphicon-cloud-download:before {
-    content: "\e197";
-}
-.glyphicon-repeat:before {
-    content: "\e030";
 }
 .glyphicon-ok:before {
     content: "\e013";

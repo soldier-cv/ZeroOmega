@@ -72,42 +72,46 @@ class ChromeOptions extends OmegaTarget.Options
 
   init: (startupCheck) ->
     super(startupCheck)
-    @ready.then =>
-      chrome.storage.session
-      .get(TEMPPROFILEKEY).then((tempProfileState = {}) =>
-        tempProfileState = tempProfileState[TEMPPROFILEKEY]
-        # tempProfileState =
-        # { _tempProfile,
-        # _tempProfileActive}
-        if tempProfileState
-          @_tempProfile = tempProfileState._tempProfile
-          @_tempProfile.rules.forEach((_rule) =>
-            key = OmegaPac.Profiles.nameAsKey(_rule.profileName)
-            @_tempProfileRulesByProfile[key] =
-              @_tempProfileRulesByProfile[key] or []
-            @_tempProfileRulesByProfile[key].push(_rule)
-            condition = _rule.condition
-            domain = condition.pattern.substring(2)
-            @_tempProfileRules[domain] = _rule
-          )
-          #@_tempProfileRules = tempProfileState._tempProfileRules
-          #@_tempProfileRulesByProfile =
-          #  tempProfileState._tempProfileRulesByProfile
-          @_tempProfileActive = tempProfileState._tempProfileActive
-          OmegaPac.Profiles.updateRevision(@_tempProfile)
-          console.log('apply temp state profile', @_currentProfileName)
-          @applyProfile(@_currentProfileName)
-        )
+    # Temp rules are kept in the extension's own state instead of
+    # chrome.storage.session, so a site's page route survives a browser
+    # restart. They are restored inside `ready`, so the popup never asks for
+    # page info before the rules are back.
+    @ready = @ready.then((result) =>
+      @_loadTempRules().then((rules) =>
+        return unless rules and Object.keys(rules).length
+        @replaceTempRules(rules, notify: false)
+      ).catch((err) => @log.error(err)).return(result)
+    )
     @ready
 
+  _loadTempRules: ->
+    @_state.get({tempRules: null}).then(({tempRules}) ->
+      return tempRules if tempRules
+      # Rules written by 3.6.4 and earlier live in the session area only.
+      chrome.storage.session?.get(TEMPPROFILEKEY).then((items) ->
+        legacy = items?[TEMPPROFILEKEY]?._tempProfile
+        return null unless legacy?.rules
+        rules = {}
+        for rule in legacy.rules when rule.profileName
+          pattern = rule.condition?.pattern or ''
+          rules[pattern.replace(/^\*\./, '')] = rule.profileName
+        rules
+      )
+    )
+
+  _saveTempRules: ({notify} = {notify: true}) ->
+    @_state.set({tempRules: @exportTempRules()}).then(=>
+      @onTempRulesChanged?() if notify
+    )
+
   addTempRule: (domain, profileName, toggle) ->
-    super(domain, profileName, toggle).then =>
-      _zeroState = {}
-      _zeroState[TEMPPROFILEKEY] = {
-        _tempProfile: @_tempProfile
-        _tempProfileActive: @_tempProfileActive
-      }
-      chrome.storage.session.set(_zeroState)
+    super(domain, profileName, toggle).then (result) =>
+      @_saveTempRules().return(result)
+
+  replaceTempRules: (rules, opts) ->
+    super(rules).then (result) =>
+      # A pull from WebDAV must not schedule a push of the same rules.
+      @_saveTempRules(notify: opts?.notify ? true).return(result)
   updateProfile: (args...) ->
     super(args...).then (results) ->
       error = false
@@ -320,6 +324,11 @@ class ChromeOptions extends OmegaTarget.Options
       domain = OmegaPac.getBaseDomain(host)
       subdomain = OmegaPac.getSubdomain(url)
 
+      # Only while the temp profile is in use: with a system proxy as the
+      # global profile no temp rule routes anything, and saying otherwise
+      # would misreport where the page goes.
+      tempRuleMatch = if @_tempProfileActive then @matchTempRule(host)
+
       return {
         url: url
         domain: domain
@@ -327,6 +336,7 @@ class ChromeOptions extends OmegaTarget.Options
         subdomain: subdomain
         tempRuleProfileName: @queryTempRule(domain)
         tempRuleHostProfileName: @queryTempRule(host)
+        tempRuleMatch: tempRuleMatch ? null
         errorCount: errorCount
       }
 

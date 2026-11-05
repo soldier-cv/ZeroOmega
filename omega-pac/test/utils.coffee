@@ -17,6 +17,10 @@ describe 'getBaseDomain', ->
   it 'should not mistake short domains with two-segment TLDs', ->
     getBaseDomain('a.bc.com').should.equal('bc.com')
     getBaseDomain('i.t.co').should.equal('t.co')
+  it 'should treat private public suffixes as part of the TLD', ->
+    getBaseDomain('ai.helunox.cc.cd').should.equal('helunox.cc.cd')
+    getBaseDomain('helunox.cc.cd').should.equal('helunox.cc.cd')
+    getBaseDomain('a.b.github.io').should.equal('b.github.io')
   it 'should not try to modify IP address literals', ->
     getBaseDomain('127.0.0.1').should.equal('127.0.0.1')
     getBaseDomain('[::1]').should.equal('[::1]')

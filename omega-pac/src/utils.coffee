@@ -39,7 +39,14 @@ class AttachedCache
 
 exports.AttachedCache = AttachedCache
 
-tld = require('tldjs')
+# The list bundled with tldjs 1.8 is from 2017 and misses newer private
+# suffixes (e.g. cc.cd), so a whole free-hosting zone used to count as one
+# "domain" and a domain-wide temp rule leaked to every site on it. The library
+# internals are used directly so its outdated list is not bundled as well.
+# Refresh the list with tools/update_public_suffix.js.
+tldGetDomain = require('tldjs/lib/domain.js')
+tldGetSubdomain = require('tldjs/lib/subdomain.js')
+publicSuffixRules = require('./public_suffix_rules.json')
 
 exports.isIp = (domain) ->
   return true if domain.indexOf(':') > 0 # IPv6
@@ -49,10 +56,10 @@ exports.isIp = (domain) ->
 
 exports.getBaseDomain = (domain) ->
   return domain if exports.isIp(domain)
-  return tld.getDomain(domain) ? domain
+  return tldGetDomain(publicSuffixRules, [], domain) ? domain
 
 exports.getSubdomain = (url) ->
-  return tld.getSubdomain(url)
+  return tldGetSubdomain(publicSuffixRules, [], url)
 
 exports.wildcardForDomain = (domain) ->
   return domain if exports.isIp(domain)

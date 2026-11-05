@@ -51,6 +51,12 @@ section.settings-group
           ng-change='backupAutoChanged()')
         span {{'options_backupAuto' | tr}}
       span.help-inline {{'options_backupAutoHelp' | tr}}
+    div.checkbox
+      label
+        input#options-backup-temprules(type='checkbox'
+          ng-model='backupConfig.syncTempRules' ng-change='backupAutoChanged()')
+        span {{'options_backupSyncTempRules' | tr}}
+      span.help-inline {{'options_backupSyncTempRulesHelp' | tr}}
   p
     button.btn.btn-default(ng-click='saveBackupConfig()'
       ladda='savingBackupConfig' data-spinner-color="#000000")
@@ -78,4 +84,14 @@ section.settings-group
       = ' '
       | {{'('}}
       | {{lastBackupState}}
+      | {{')'}}
+  p.help-block(ng-if='backupConfig.syncTempRules && backupConfig.uri')
+    span.glyphicon.glyphicon-transfer
+    = ' '
+    | {{'options_backupTempRulesLast' | tr}}
+    | {{ lastTempRulesSync ? (lastTempRulesSync | date:'medium') : ('options_backupLastNever' | tr) }}
+    span(ng-if='lastTempRulesSyncState')
+      = ' '
+      | {{'('}}
+      | {{lastTempRulesSyncState}}
       | {{')'}}

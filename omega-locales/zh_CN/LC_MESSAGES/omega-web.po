@@ -422,6 +422,60 @@ msgstr "上次备份："
 msgid "options_backupLastNever"
 msgstr "从未备份"
 
+msgid "options_backupSyncTempRules"
+msgstr "同步页面规则"
+
+msgid "options_backupSyncTempRulesHelp"
+msgstr "popup「本页」设置的规则存到 WebDAV：每次修改先拉取、按站点合并再上传，打开浏览器和每 10 分钟各拉一次。"
+
+msgid "options_backupTempRulesLast"
+msgstr "上次同步页面规则："
+
+msgid "options_group_update"
+msgstr "更新"
+
+msgid "options_updateAvailable"
+msgstr "有新版本 $VERSION$"
+
+msgid "options_updateLatest"
+msgstr "已是最新（$VERSION$）"
+
+msgid "options_updateFailed"
+msgstr "连不上发布服务器"
+
+msgid "options_updateStepCopy"
+msgstr "复制下面的更新命令"
+
+msgid "options_updateStepRun"
+msgstr "粘贴到 PowerShell 执行（下载并覆盖到原安装目录）"
+
+msgid "options_updateStepReload"
+msgstr "点「重载扩展」让新文件生效"
+
+msgid "options_updateCopy"
+msgstr "复制更新命令"
+
+msgid "options_updateCopied"
+msgstr "已复制"
+
+msgid "options_updateReload"
+msgstr "重载扩展"
+
+msgid "options_updateCheckNow"
+msgstr "立即检查"
+
+msgid "options_updateAuto"
+msgstr "打开浏览器后和每 6 小时自动检查一次，有新版本会弹系统通知。"
+
+msgid "options_updateLastChecked"
+msgstr "上次检查："
+
+msgid "update_notifyTitle"
+msgstr "ZeroOmega 有新版本 $VERSION$"
+
+msgid "update_notifyMessage"
+msgstr "点此打开设置页的「关于」，复制更新命令完成更新。"
+
 msgid "options_backupSaved"
 msgstr "备份设置已保存。"
 
@@ -1097,46 +1151,16 @@ msgid "popup_clearDomainRule"
 msgstr "撤销主域规则"
 
 msgid "popup_tempRuleLifetime"
-msgstr "临时规则只在本次浏览器会话内有效"
+msgstr "页面规则会保存下来，重启浏览器后仍然生效；开启 WebDAV 后在设备间同步"
 
 msgid "popup_domainOverride"
-msgstr "同时受临时规则覆盖：$PROFILE$，作用于 $DOMAIN$ 下的所有站点"
+msgstr "本页实际走 $PROFILE$：来自 $DOMAIN$ 下所有站点共用的临时规则"
+
+msgid "popup_hostOverride"
+msgstr "本页实际走 $PROFILE$：来自 $DOMAIN$ 自己的临时规则"
 
 msgid "popup_domainOverrideClear"
 msgstr "撤销"
-
-msgid "popup_checkUpdate"
-msgstr "检查更新"
-
-msgid "popup_checkUpdateHelp"
-msgstr "向发布服务器确认是否有新版本"
-
-msgid "popup_updateChecking"
-msgstr "正在检查更新…"
-
-msgid "popup_updateAvailable"
-msgstr "有新版本 $VERSION$ · 复制更新命令"
-
-msgid "popup_updateHelp"
-msgstr "复制安装/更新命令；在 PowerShell 执行后再点下面的「重载扩展」"
-
-msgid "popup_updateCopied"
-msgstr "已复制，粘贴到 PowerShell 执行"
-
-msgid "popup_updateOpenedGuide"
-msgstr "已打开发布说明，请从页面复制命令"
-
-msgid "popup_updateLatest"
-msgstr "已是最新（$VERSION$）"
-
-msgid "popup_updateFailed"
-msgstr "检查更新失败，点此重试"
-
-msgid "popup_reloadExtension"
-msgstr "重载扩展"
-
-msgid "popup_reloadHelp"
-msgstr "让刚解压的新文件生效"
 
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$个资源未加载"

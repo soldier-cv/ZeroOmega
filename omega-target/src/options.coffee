@@ -759,10 +759,7 @@ class Options
     if not profile
       return Promise.reject new ProfileNotExistError(profileName)
     if not @_tempProfile?
-      @_tempProfile = OmegaPac.Profiles.create('', 'SwitchProfile')
-      currentProfile = @currentProfile()
-      @_tempProfile.color = currentProfile.color
-      @_tempProfile.defaultProfileName = currentProfile.name
+      @_createTempProfile()
     
     changed = 0 # 0: nothing change, 1 add or modified, -1 delete
     rule = @_tempProfileRules[domain]
@@ -785,12 +782,7 @@ class Options
         delete @_tempProfileRules[domain]
         changed = -1
     else
-      rule =
-        condition:
-          conditionType: 'HostWildcardCondition'
-          pattern: '*.' + domain
-        profileName: profileName
-        isTempRule: true
+      rule = @_newTempRule(domain, profileName)
       @_insertTempRule(rule, domain)
       @_tempProfileRules[domain] = rule
       changed = 1
@@ -809,6 +801,58 @@ class Options
       @applyProfile(@_currentProfileName)
     else
       Promise.resolve()
+
+  _createTempProfile: ->
+    @_tempProfile = OmegaPac.Profiles.create('', 'SwitchProfile')
+    currentProfile = @currentProfile()
+    @_tempProfile.color = currentProfile?.color
+    @_tempProfile.defaultProfileName = currentProfile?.name
+
+  _newTempRule: (domain, profileName) ->
+    condition:
+      conditionType: 'HostWildcardCondition'
+      pattern: '*.' + domain
+    profileName: profileName
+    isTempRule: true
+
+  ###*
+  # Export the temp rules as a plain map, for persisting and syncing.
+  # @returns {Object.<string,string>} A map from domain keys to profile names.
+  ###
+  exportTempRules: ->
+    result = {}
+    for own domain, rule of @_tempProfileRules when rule.profileName
+      result[domain] = rule.profileName
+    result
+
+  ###*
+  # Replace every temp rule with the given map, in one PAC update. Rules whose
+  # profile no longer exists are dropped, as addTempRule would refuse them.
+  # @param {Object.<string,string>} rules A map from domain keys to profiles.
+  # @returns {Promise} A promise which is fulfilled when the rules are applied.
+  ###
+  replaceTempRules: (rules) ->
+    @log.method('Options#replaceTempRules', this, arguments)
+    rules ?= {}
+    if not @_tempProfile?
+      # No temp profile yet and nothing to add: creating one would switch a
+      # fixed proxy over to a PAC script for no reason.
+      return Promise.resolve() unless Object.keys(rules).length and
+        @_currentProfileName
+      @_createTempProfile()
+    @_tempProfile.rules = []
+    @_tempProfileRules = {}
+    @_tempProfileRulesByProfile = {}
+    for own domain, profileName of rules
+      continue unless OmegaPac.Profiles.byName(profileName, @_options)
+      rule = @_newTempRule(domain, profileName)
+      @_insertTempRule(rule, domain)
+      @_tempProfileRules[domain] = rule
+      key = OmegaPac.Profiles.nameAsKey(profileName)
+      (@_tempProfileRulesByProfile[key] ?= []).push(rule)
+    OmegaPac.Profiles.updateRevision(@_tempProfile)
+    return Promise.resolve() if not @_currentProfileName
+    @applyProfile(@_currentProfileName)
 
   ###*
   # Insert a temp rule into the temp profile.
@@ -845,6 +889,22 @@ class Options
     pattern = rule?.condition?.pattern
     return null unless typeof pattern == 'string'
     if pattern.substring(0, 2) == '*.' then pattern.substring(2) else pattern
+
+  ###*
+  # Find the temp rule that decides the given host, the way the PAC script
+  # would: the first matching rule in the (most specific first) rule order.
+  # It can belong to a key the popup does not offer as a scope, such as a
+  # middle-level subdomain or a key computed with an older suffix list.
+  # @param {String} host The hostname of the page.
+  # @returns {?{key: String, profileName: String}} The matching rule, if any.
+  ###
+  matchTempRule: (host) ->
+    return null unless @_tempProfile? and host
+    request = OmegaPac.Conditions.requestFromUrl('http://' + host + '/')
+    for rule in @_tempProfile.rules when rule.profileName
+      if OmegaPac.Conditions.match(rule.condition, request)
+        return {key: @_tempRuleDomain(rule), profileName: rule.profileName}
+    null
 
   ###*
   # Find a temp rule by its exact domain key, which is either the base domain

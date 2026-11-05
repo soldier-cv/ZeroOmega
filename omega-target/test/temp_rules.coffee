@@ -88,3 +88,67 @@ describe 'Options#addTempRule', ->
     .then ->
       patterns(options).should.eql []
       should.not.exist options.queryTempRule('postest.findfine.com')
+
+describe 'Options#replaceTempRules', ->
+  createOptions = ->
+    log = {method: sinon.stub(), error: sinon.stub()}
+    options = new Options(null, null, log)
+    options._options =
+      '+switch':
+        name: 'switch'
+        profileType: 'SwitchProfile'
+        defaultProfileName: 'direct'
+        rules: []
+      '+proxy':
+        name: 'proxy'
+        profileType: 'FixedProfile'
+        proxyForHttp: {scheme: 'http', host: '127.0.0.1', port: 8888}
+    options._currentProfileName = 'switch'
+    options.applyProfile = sinon.stub().returns(Promise.resolve())
+    options
+
+  it 'should round-trip through exportTempRules', ->
+    options = createOptions()
+    options.addTempRule('findfine.com', 'direct').then ->
+      options.addTempRule('postest.findfine.com', 'proxy')
+    .then ->
+      exported = options.exportTempRules()
+      exported.should.eql
+        'findfine.com': 'direct'
+        'postest.findfine.com': 'proxy'
+      fresh = createOptions()
+      fresh.replaceTempRules(exported).then ->
+        fresh.exportTempRules().should.eql exported
+        fresh._tempProfile.rules.map((r) -> r.condition.pattern)
+          .should.eql ['*.postest.findfine.com', '*.findfine.com']
+
+  it 'should drop rules for profiles that do not exist', ->
+    options = createOptions()
+    options.replaceTempRules({'a.com': 'proxy', 'b.com': 'gone'}).then ->
+      options.exportTempRules().should.eql {'a.com': 'proxy'}
+
+  it 'should report the rule that actually matches a host', ->
+    options = createOptions()
+    options.replaceTempRules(
+      'cc.cd': 'proxy'
+      'postest.findfine.com': 'direct'
+      'findfine.com': 'proxy'
+    ).then ->
+      options.matchTempRule('a.postest.findfine.com').should.eql
+        key: 'postest.findfine.com', profileName: 'direct'
+      options.matchTempRule('www.findfine.com').should.eql
+        key: 'findfine.com', profileName: 'proxy'
+      options.matchTempRule('ai.helunox.cc.cd').should.eql
+        key: 'cc.cd', profileName: 'proxy'
+      should.not.exist options.matchTempRule('other.com')
+
+  it 'should replace existing rules instead of merging', ->
+    options = createOptions()
+    options.addTempRule('old.com', 'proxy').then ->
+      options.replaceTempRules({'new.com': 'direct'})
+    .then ->
+      options.exportTempRules().should.eql {'new.com': 'direct'}
+      should.not.exist options.queryTempRule('old.com')
+      options.addTempRule('new.com', 'proxy')
+    .then ->
+      options.queryTempRule('new.com').should.equal 'proxy'

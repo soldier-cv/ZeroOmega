@@ -277,6 +277,12 @@ zeroBackground = (zeroStorage, opts) ->
   options.backupOptionsNow = -> optionsBackup.backupNow()
   options.restoreOptionsFromBackup = -> optionsBackup.restore()
   options.setOptionsBackupConfig = (config) -> optionsBackup.setConfig(config)
+  options.syncTempRulesNow = -> optionsBackup.syncTempRules()
+
+  updateCheck = new OmegaTargetCurrent.UpdateCheck(state, Log)
+  updateCheck.watch()
+  options.getUpdateStatus = -> updateCheck.getStatus()
+  options.checkUpdateNow = -> updateCheck.check()
 
   options.externalApi = new OmegaTargetCurrent.ExternalApi(options)
   options.externalApi.listen()

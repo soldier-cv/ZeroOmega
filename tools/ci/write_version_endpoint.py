@@ -29,8 +29,8 @@ CHANNEL = 'custom_main'
 SOURCE = 'https://github.com/soldier-cv/ZeroOmega'
 ZIPS = ('chromium', 'firefox')
 LINK_LABEL = '版本查询接口（version.json，version.txt 供 curl）'
-# 与 omega-web/src/popup/js/update.js 的 FALLBACK_COMMAND 完全一致：分发包清单里没有
-# command 时两条入口给同一条命令，避免升级方式互相矛盾。
+# 与 omega-target-chromium-extension/src/module/update_check.coffee 的 FALLBACK_COMMAND
+# 完全一致：分发包清单里没有 command 时两条入口给同一条命令，避免升级方式互相矛盾。
 FALLBACK_COMMAND = (
     'iwr http://100.64.0.88:8088/res/zeroomega/chromium-release.zip '
     '-OutFile $env:TEMP\\zo.zip; Expand-Archive $env:TEMP\\zo.zip '

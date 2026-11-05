@@ -210,6 +210,10 @@ angular.module('omegaTarget', []).factory 'omegaTarget', ($q) ->
       callBackground('restoreOptionsFromBackup')
     setOptionsBackupConfig: (config) ->
       callBackground('setOptionsBackupConfig', config)
+    syncTempRulesNow: -> callBackground('syncTempRulesNow')
+    getUpdateStatus: -> callBackground('getUpdateStatus')
+    checkUpdateNow: -> callBackground('checkUpdateNow')
+    reloadExtension: -> chrome.runtime.reload()
     setRequestInfoCallback: (callback) ->
       requestInfoCallback = callback
 

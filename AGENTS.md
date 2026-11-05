@@ -296,6 +296,7 @@
   - **无需改 manifest**：`host_permissions` 已是 `<all_urls>`，覆盖 `http://100.64.0.88:8088/*`（Chrome / Firefox 均可跨域取扩展页数据）。
 - **验证（2026-10-28）**：本地版本 3.6.3 时行显示「已是最新（v3.6.3）」，缓存里写入的是**服务器清单里的命令原文**；离线（CDP 断网）+ 清缓存后点击 → 「检查更新失败，点此重试」，可再点重试；注入更高版本缓存 → 行变主色「有新版本 v9.9.9 · 复制更新命令」并出现「重载扩展」行，点击后剪贴板写入成功、文案变「已复制，粘贴到 PowerShell 执行」、tooltip 换成下一步提示。`npm run build` 全绿，构建产物与源逐字节一致。
 - **风险 / 已知**：`chrome.runtime.reload()` 会让 popup 关闭，属预期；Firefox 侧同样只做检查（临时加载的扩展重载后仍在，但 Firefox 需要重新「临时载入」才拿到新文件——实现未区分，保持同一套文案）。
+- **被 R16 / D20 取代（2026-11-05）**：popup 里的两行与 `js/update.js` 已删除；检查改在 background 定时进行，UI 在设置页「关于」，版本源改为 R15 的 `version.json`。
 
 ### R15. 版本查询接口（`/res/zeroomega/version.json` + `version.txt`） — 状态：**脚本与 CI 已实现，本地模拟 /res 全场景验证通过，待生产落盘**（2026-10-28）
 
@@ -323,6 +324,37 @@
   - 端点只描述「当前最新包」，不保留历史；回溯靠 `CHANGELOG.md` 与目录里的 `*.sha256` 记录。
   - 端点自身不带缓存头（nginx 默认）；客户端按需加 `no-store` 或查询串（现有 popup 已如此）。
   - popup 仍读分发包清单；本任务只建端点，不改扩展消费方（避免同批改动扩散）。
+- **消费方已切换（2026-11-05，见 R16）**：扩展的更新检查改读 `version.json`（`update.command` / `update.guide` / `version`），不再读分发包清单。
+
+### R16. 页面规则持久化 + WebDAV 同步、更新检查移到设置页并自动化、公共后缀表更新 — 状态：**构建通过，真实 Chromium 端到端校验通过，待实机确认**（2026-11-05）
+
+- **背景（华总反馈）**：① popup 底部的「检查更新」行占地方，应放到设置页，并且要能**自动**（打开浏览器时 + 定时）检查；② 核对「整个主域」场景下的切换是否有问题（要核对代码）；③ 每个网站要存自己的策略，**重开浏览器后**仍是「本页」且勾选好；④ 本页规则一起进 WebDAV，修改就上传、上传前先拉，避免冲突。
+- **代码核对结论（定位）**：
+  1. **公共后缀表过期（真实 bug）**：`tldjs@1.8` 自带的 `rules.json` 是 2017 年的，缺 `cc.cd`（DNSHE 免费二级域，现已在 PSL 私有段）等新私有后缀。`ai.helunox.cc.cd` 的主域被算成 `cc.cd` → 「整个主域」按钮作用到**所有** `*.cc.cd` 站点。
+  2. **规则重启即失**：临时规则只写在 `chrome.storage.session`，浏览器关闭即清空；R12 记住了模式与作用域，但勾选的规则本身已不在，所以重开后「本页」是空的。
+  3. **恢复时序**：session 规则的恢复挂在 `options.ready` 之后、未并入 `ready`，消息处理（`getPageInfo`）可能早于恢复执行。
+  4. **表达缺口**：主域视图里，若本子域另有自己的规则在生效，副标题仍说「跟随全局 / 本页使用 <主域规则>」；全局视图看不到本子域自己的规则；中间层子域或旧 key（如残留的 `cc.cd` 规则）完全不可见、也删不掉。
+- **已确认决策（D19 / D20）**：见决策日志。要点——页面规则改存扩展自身持久状态区（不进 options，不进整体备份），WebDAV 单独一个小文件按站点三方合并 + `If-Match` 防覆盖；更新检查移到 background 定时 + 系统通知，UI 在设置页「关于」；仓库内置最新公共后缀表。
+- **实现（2026-11-05）**：
+  - 公共后缀：新增 `omega-pac/src/public_suffix_rules.json`（publicsuffix.org 全表，tldjs 格式，1447 个 TLD）与 `tools/update_public_suffix.js`（刷新脚本）；`omega-pac/src/utils.coffee` 直接用 `tldjs/lib/domain.js` / `subdomain.js` + 新表（不再 `require('tldjs')`，避免把旧表也打进包）；`test/utils.coffee` 补 `ai.helunox.cc.cd → helunox.cc.cd`、`a.b.github.io → b.github.io`。
+  - `omega-target/src/options.coffee`：抽出 `_createTempProfile` / `_newTempRule`；新增 `exportTempRules()`（`{domain: profileName}`）、`replaceTempRules(rules)`（一次 PAC 更新整体替换，丢弃 profile 已不存在的规则；没有规则时不创建 temp profile，避免把固定代理无故切成 PAC）、`matchTempRule(host)`（按 PAC 的首条命中顺序返回实际生效的规则及其 key）；`test/temp_rules.coffee` 新增 4 例（往返、丢弃失效 profile、整体替换、实际命中）。
+  - `omega-target-chromium-extension/src/module/options.coffee`：规则存 `state.tempRules`（`omega.local.*`，经 idb-keyval 持久），在 `ready` 内恢复；兼容读取 3.6.4 及之前写在 `chrome.storage.session` 的旧规则（一次性迁移）；`addTempRule` / `replaceTempRules` 写盘后回调 `onTempRulesChanged`（同步拉取导致的替换不回调）；`getPageInfo` 新增 `tempRuleMatch`（仅 `_tempProfileActive` 时给，系统代理为全局时不误报）。
+  - `options_backup.coffee`：WebDAV 新增 `zeroomega/zeroomega-temprules.json`（`{rules, updatedAt}`）的 `getTempRules` / `putTempRules`（强 ETag 时带 `If-Match`，412 视为冲突重试，最多 3 轮）；`syncTempRules`（串行、期间有新改动则再跑一轮）：拉取 → 与 `state.tempRulesBase` 三方合并（`mergeTempRules`，按站点：只本机改过取本机，只远端改过取远端，两边都改本机这次点击优先；首次同步 = 远端 + 本机叠加）→ 不同则上传 → 记 base；触发：规则变化 1s 防抖、background 启动后一次、`omega.tempRulesPull` 闹钟每 10 分钟、保存 WebDAV 设置时；新配置项 `optionsBackup.syncTempRules`（默认开）及上次同步时间 / 状态。
+  - 更新检查：新增 `module/update_check.coffee`——读 `version.json`（R15 端点，相对 URL 补 host），结果存 `state.update.*`；`omega.updateCheck` 闹钟每 6h（只在缺失时创建，避免 worker 重启把计时清零）+ worker 启动时若距上次检查 >30 分钟再查一次；发现新版本弹 `chrome.notifications`（**每个版本只弹一次**），点击打开 `options.html#!/about`。manifest（Chrome / Firefox）新增 `notifications` 权限。
+  - 设置页：`partials/about.jade` + `controllers/about.coffee` 新增「更新」分组（状态、三步说明、命令原文、复制 / 重载扩展 / 立即检查，未检查过则进入页面时自动查一次）；`partials/io.jade` + `controllers/io.coffee` 新增「同步页面规则」开关与上次同步时间 / 状态；`less/options.less` 补 `.update-command` / `.update-steps`。
+  - popup：删除 `js/update.js` 与底部两行及其 CSS；`profiles.js` 改用 `tempRuleMatch`——副标题始终写本页实际路由；提示行覆盖「受更宽规则覆盖」（`popup_domainOverride`）与「本子域另有自己的规则」（新 `popup_hostOverride`），各带显式「撤销」，因此旧 key / 中间层规则也能看见、能删；首次打开（无存档模式）时只要本页被某条临时规则路由就落在「本页」，所以从别的设备同步来的站点也直接显示勾选；去掉 `OmegaPopup.pageRoute` / `pageRouteFromInfo` / `inheritedRule` / `effectivePageRule`。
+  - i18n（`en_US` + `zh_CN`）：新增 `popup_hostOverride`、`options_backupSyncTempRules*`、`options_backupTempRulesLast`、`options_group_update`、`options_update*`（11 条）、`update_notifyTitle` / `update_notifyMessage`；改写 `popup_domainOverride`（直接说「本页实际走 X」）与 `popup_tempRuleLifetime`（规则会保存、可同步）；删除 popup 更新相关 11 条。
+- **验证（2026-11-05）**：
+  - `npm run build` 全绿（coffeelint 全过；jade 仅 2 条既有 warning）；构建产物 `omega_pac.min.js` 含新表（`cd: gov|cc`）且不含旧表。
+  - 单元测试：omega-target **10 passing / 0 failing**；omega-pac **143 passing / 1 failing**（既有 SOCKS5）；`mergeTempRules` 10 例真值表全过。
+  - 端到端（临时目录 harness，不入库；真实 headless Chromium 加载 `build/`，`--host-resolver-rules` 指向本地站点，本地内存 WebDAV 服务实现 MKCOL/GET/PUT（强 ETag + `If-Match`→412）/DELETE）：
+    - 同步（两个独立浏览器配置模拟两台设备，17 条全过）：cc.cd 站点作用域为 `ai.helunox.cc.cd` / `helunox.cc.cd`；A 设规则即上传；**A 真实关闭并重启浏览器后规则仍在，popup 直接「本页 + 勾选」**；B 带本地规则加入 WebDAV → 合并保留双方；B 首次打开 A 的站点即「本页 + 勾选」；A 拉到 B 的规则；两台同时改不同站点 → 合并且收敛；一端撤销 → 另一端同步删除；残留的旧 `cc.cd` 规则在本页视图有提示 + 撤销且能删掉；设置页「关于」显示更新分组，注入更高版本后显示版本、命令原文与「复制更新命令」。
+    - 回归（22 条全过）：新站点默认全局；本页无规则「跟随全局」；再点已生效行规则不变；改选替换；「撤销本页规则」只删这一条；主域作用域写主域 key、「撤销主域规则」；切作用域不搬规则；子域继承主域规则（勾选 + 提示、无自身撤销）；子域另有规则时主域视图副标题写实际路由并提示子域规则；全局视图列表标全局、提示写本页实际路由；切全局不删规则；兄弟子域按自身记忆；**重启浏览器后两条规则仍在且 PAC 含两条**；系统代理为全局时回落全局、不误报临时规则、规则保留，切回 auto switch 后本页路由恢复。
+- **已知 / 边界**：
+  - 页面规则与整体 options 备份是**两个文件**：「从备份恢复」不会改动页面规则，反之亦然。
+  - 两台设备几乎同时改**同一个站点**时，后上传的那台的选择为准（`If-Match` 保证不会丢掉对方对其它站点的修改）；服务器不支持强 ETag 时退化为「先拉后推」，竞争窗口约为一次 GET→PUT 往返。
+  - 首次同步时远端与本机对同一站点值不同，以本机为准。
+  - Firefox 未单独实测（同一份代码；`notifications`、`alarms` 均为 WebExtensions 标准 API）。
 
 ## 4. 项目基础架构
 
@@ -368,9 +400,10 @@ cd omega-target && npm test
 ### 4.4 关键运行机制
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
-- **临时规则**：隐藏的 `_tempProfile`（SwitchProfile）+ `chrome.storage.session`（**浏览器重启即失效**）；入口有 popup 漏斗（支持“当前子域 / 整个主域”作用域切换，默认当前子域）、请求信息详情、网络监测页、临时规则管理器；临时规则按域名层级排序（子域在前，首条命中优先）；`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）`。
+- **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup「本页」、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
+- **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时与每 10 分钟（`omega.tempRulesPull` 闹钟）各拉一次。
 - **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊（点击切换，只切换视图、不改规则）+ 副标题写明实际路由（本页无规则时写「跟随全局：X」），下面**同一套**情景模式列表。模式与作用域按 host 记在 `localStorage`（`omega.popup.mode:<host>` / `omega.popup.scope:<host>`），重开 popup 保持上次的选择。列表行点击**只应用、幂等**；撤销用列表标题旁的「撤销本页规则 / 撤销主域规则」，整域规则另有提示行 + 「撤销」。切到「全局」点选应用该全局 profile；切到「本页」点选只写入**当前作用域**的那一条临时规则，作用域切换不搬规则；本 host 没有自己的规则时，列表勾选实际生效的继承整域路由，并在两种视图都用提示行说明。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
-- **更新检查**：popup 底部卡片有「检查更新」/「重载扩展」两行（`js/update.js`）。版本与命令来自 `http://100.64.0.88:8088/res/zeroomega/manifest.json`（CI 在 tag 上写），6h 缓存；有新版时行变主色「有新版本 vX · 复制更新命令」，复制后用 `chrome.runtime.reload()` 生效。未打包扩展不能自更新，`<all_urls>` 已覆盖该地址，无需额外权限。
+- **更新检查**：background 的 `module/update_check.coffee` 读 R15 端点 `version.json`，打开浏览器时（距上次 >30 分钟）与每 6 小时（`omega.updateCheck` 闹钟）各查一次；发现新版本弹一次系统通知（每个版本一次），点击打开设置页「关于」。「关于」页的「更新」分组显示状态、命令原文与「复制更新命令 / 重载扩展 / 立即检查」。未打包扩展不能自更新，所以安装仍是 PowerShell 命令 + `chrome.runtime.reload()`。popup 里不再有更新入口。
 - **版本查询接口**：`/res/zeroomega/version.json`（机器读，字段与顺序见 R15）+ `version.txt`（一行 `curl` 即得 `vX.Y.Z`）。CI publish 在刷新分发包清单后调用 `tools/ci/write_version_endpoint.py` 原子落盘，版本号取自分发 zip 内的 `manifest.json`；分发包卡片与 `/res/manifest.json` 总表会自动带一条 `version.json` link。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
 
@@ -396,3 +429,5 @@ cd omega-target && npm test
 | D16 | popup 列表行点击 = **只应用、幂等**；撤销是列表标题旁显式按钮（「撤销本页规则」/「撤销主域规则」），无可用撤销动作时该按钮不出现；「本页」无生效规则时副标题如实写「跟随全局：X」；临时规则易失性放 tooltip | 保留「再点已生效的行 = 删除」，靠 tooltip 解释（R12 实机后复盘） | 「再点一次就没了」不可预见，且是「勾选没记住」错觉的根源；撤销需要标签、需要可发现，放在标题行只占一行、且不会误触。副标题写明实际生效路由，消除「本页没设置 = 没代理」的误解 |
 | D17 | 更新只做「检查 + 复制命令 + 重载扩展」；版本与命令都取自发布服务器的 `manifest.json`，本地 6h 缓存，失败可重试，剪贴板失败回退发布说明页 | 让扩展自己下载并覆盖自身文件（FSA 目录授权 / native host）；自助 `.crx` + `update_url` | unpacked 扩展无法写自身文件，Windows Chrome 也封了自助 CRX 静默更新；本机已有 tag→CI→`/res/zeroomega/` 的完整发布链，缺的只是「发现新版 + 拿到那条命令 + 让新文件生效」三步，最小实现即可闭环 |
 | D18 | 版本查询端点 = **静态文件** `/res/zeroomega/version.json` + `version.txt`；版本号只从分发 zip 内的 `manifest.json` 推导（脚本没有 `--version`）；`updated_at` 同版本沿用旧值；sha256 用实算值、但记录不一致必须让 CI 失败；URL 全为相对路径；新脚本复用 `refresh_res_manifest` 的原子写与总表汇总 | 直接复用分发包 `manifest.json` 当版本接口 / 让脚本接受 `--version` / 引入应用层 API / 写死 host 的绝对 URL | 分发包清单是给首页渲染的混合结构，字段语义会随展示需求漂移；任何另记的版本号都会与包不一致（tag 与包版本脱钩是真实事故面）；静态只读挂载没有写接口；绝对 URL 换 IP / 域名就失效 |
+| D19 | 页面规则（临时规则）**持久化**到扩展自身状态区，重启浏览器后仍生效，直到手动撤销；WebDAV 同步用**独立小文件** `zeroomega-temprules.json`，每次修改「先拉 → 按站点三方合并（base = 上次与服务器一致的副本）→ 后推」，强 ETag 时 `If-Match` 防覆盖；同一站点两边都改时本机这次点击优先；开关默认开 | 继续只存 `chrome.storage.session`；把规则塞进 options 整体备份；last-write-wins 整文件覆盖；按时间戳逐条比较 | 华总要求「重开浏览器还是本页且勾选好」，会话存储做不到；规则随 popup 点击高频变化，进整体备份会让每次点击都推一份完整 options，且「从备份恢复」会把别的设备刚设的规则冲掉；整文件覆盖会丢另一台设备对其它站点的修改；三方合并只需一份 base，不依赖设备时钟 |
+| D20 | 更新检查放 **background 定时**（启动 + 每 6h）+ 系统通知（每版本一次），UI 移到设置页「关于」，popup 不再放更新入口；版本源改为 R15 的 `version.json`；仓库内置最新 **PSL 全表**，不再用 tldjs 自带的 2017 年旧表 | popup 底部常驻两行（D17 原方案）；Native Messaging 全自动安装；升级 tldjs 大版本 | popup 空间宝贵，更新是低频事；自动检查 + 通知解决「忘了看」，复制命令 + 重载解决「怎么装」，不往系统装额外组件（华总选方案 A）。旧后缀表把 `ai.helunox.cc.cd` 的主域算成 `cc.cd`，「整个主域」会误伤所有 cc.cd 站点；只换数据表、不换库，改动最小 |

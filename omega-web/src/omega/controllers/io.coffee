@@ -7,22 +7,29 @@ angular.module('omega').controller 'IoCtrl', (
     username: ''
     password: ''
     autoBackup: false
+    syncTempRules: true
 
   omegaTarget.state([
     'optionsBackup.uri'
     'optionsBackup.username'
     'optionsBackup.password'
     'optionsBackup.autoBackup'
+    'optionsBackup.syncTempRules'
     'optionsBackup.lastBackup'
     'optionsBackup.lastBackupState'
-  ]).then ([uri, username, password, autoBackup, lastBackup,
-    lastBackupState]) ->
+    'optionsBackup.lastTempRulesSync'
+    'optionsBackup.lastTempRulesSyncState'
+  ]).then ([uri, username, password, autoBackup, syncTempRules, lastBackup,
+    lastBackupState, lastTempRulesSync, lastTempRulesSyncState]) ->
     $scope.backupConfig.uri = uri or ''
     $scope.backupConfig.username = username or ''
     $scope.backupConfig.password = password or ''
     $scope.backupConfig.autoBackup = !!autoBackup
+    $scope.backupConfig.syncTempRules = syncTempRules != false
     $scope.lastBackup = lastBackup or null
     $scope.lastBackupState = lastBackupState or ''
+    $scope.lastTempRulesSync = lastTempRulesSync or null
+    $scope.lastTempRulesSyncState = lastTempRulesSyncState or ''
 
   $scope.exportOptions = ->
     $rootScope.applyOptionsConfirm().then ->
@@ -83,6 +90,7 @@ angular.module('omega').controller 'IoCtrl', (
       username: $scope.backupConfig.username
       password: $scope.backupConfig.password
       autoBackup: !!$scope.backupConfig.autoBackup
+      syncTempRules: !!$scope.backupConfig.syncTempRules
     }).finally ->
       $scope.savingBackupConfig = false
 

@@ -6,6 +6,8 @@ class ChromeTabs
     @_dirtyTabs = {}
     return
 
+  # Per-tab action calls race with the tab being closed: without a callback
+  # Chrome rejects the promise and logs "Uncaught (in promise) No tab with id".
   ignoreError: ->
     chrome.runtime.lastError
     return
@@ -39,7 +41,7 @@ class ChromeTabs
   processTab: (tab, changeInfo) ->
     if @_badgeTab
       for own id of @_badgeTab
-        try chrome.action.setBadgeText?(text: '', tabId: id)
+        try chrome.action.setBadgeText?({text: '', tabId: id}, @ignoreError)
         @_badgeTab = null
 
     if not tab.url? or tab.url.indexOf("chrome") == 0
@@ -47,22 +49,22 @@ class ChromeTabs
         chrome.action.setTitle({
           title: @_defaultAction.title
           tabId: tab.id
-        })
+        }, @ignoreError)
         @clearIcon tab.id
       return
     @actionForUrl(tab.url).then((action) =>
       if not action
         @clearIcon tab.id
-        chrome.action.setBadgeText?(text: '', tabId: tab.id)
+        chrome.action.setBadgeText?({text: '', tabId: tab.id}, @ignoreError)
         return
       @setIcon(action.icon, tab.id)
       title = if @_canSetPopup() then action.title else action.shortTitle
       if action.badgeText
         chrome.action.setBadgeText?(
-          text: action.badgeText,
-          tabId: tab.id
+          {text: action.badgeText, tabId: tab.id}
+          @ignoreError
         )
-      return chrome.action.setTitle({title: title, tabId: tab.id})
+      return chrome.action.setTitle({title: title, tabId: tab.id}, @ignoreError)
     ).catch((e) ->
       console.log('error:', e)
     )
@@ -70,10 +72,10 @@ class ChromeTabs
   setTabBadge: (tab, badge) ->
     @_badgeTab ?= {}
     @_badgeTab[tab.id] = true
-    chrome.action.setBadgeText?(text: badge.text, tabId: tab.id)
+    chrome.action.setBadgeText?({text: badge.text, tabId: tab.id}, @ignoreError)
     chrome.action.setBadgeBackgroundColor?(
-      color: badge.color
-      tabId: tab.id
+      {color: badge.color, tabId: tab.id}
+      @ignoreError
     )
 
   setIcon: (icon, tabId) ->

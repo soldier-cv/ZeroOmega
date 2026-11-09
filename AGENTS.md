@@ -356,6 +356,16 @@
   - 首次同步时远端与本机对同一站点值不同，以本机为准。
   - Firefox 未单独实测（同一份代码；`notifications`、`alarms` 均为 WebExtensions 标准 API）。
 
+### R17. 后台按 tabId 的调用兜住「标签已关闭」竞态 — 状态：**已实现，构建通过，待实机确认**（2026-11-09）
+
+- **背景**：chrome://extensions 的「错误」里出现 `Uncaught (in promise) Error: No tab with id: <id>`。MV3 下 `chrome.*` API 返回 Promise；调用发出的瞬间该 id 的标签页已被关闭（或被替换）时 Promise 被 reject，而代码没有接住，浏览器就记为未处理的 Promise rejection。它只是控制台噪音，路由 / PAC / 临时规则都不受影响。
+- **触发点（service worker 侧，全部是按 tabId 的调用）**：
+  - `module/tabs.coffee`：`processTab` 中带 `tabId` 的 `chrome.action.setTitle` / `setBadgeText`（chrome:// 页面分支、清空角标、写入角标文本）与 `setTabBadge` 的 `setBadgeText` / `setBadgeBackgroundColor`；
+  - `coffee/background.coffee`：`refreshActivePageIfEnabled` 的 `chrome.tabs.update` / `chrome.tabs.reload`（默认 `-refreshOnProfileChange: true`，每次切情景模式都会刷新当前页）与 inspect 流程的 `chrome.action.setTitle`；顺带补了 `tabs.length == 0` 保护（原来会抛 `Cannot read properties of undefined`）。
+- **实现**：这些调用改为回调式并读取 `chrome.runtime.lastError`（`tabs.coffee` 复用既有 `ignoreError`，`background.coffee` 新增 `ignoreTabError`）。行为不变——标签已经不存在时本来也没有需要更新的 UI。
+- **未改（同类但属于扩展页面，不在本次报告的 service worker 控制台）**：`omega_target_web.coffee` 的 `refreshActivePage`、`popup/network/js/tab.js` 的刷新 / 切换按钮、`popup/network/js/index.js` 的 `autoDiscardable` 调用；它们会在各自页面控制台报同类错误，可按需一并兜底。
+- **验证（2026-11-09）**：`omega-target-chromium-extension` 的 `grunt` 全绿（coffeelint 28 files lint free）；构建产物已确认把回调编进 `build/js/background.js` 与 `build/js/omega_target_chromium_extension.min.js`。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -431,3 +441,4 @@ cd omega-target && npm test
 | D18 | 版本查询端点 = **静态文件** `/res/zeroomega/version.json` + `version.txt`；版本号只从分发 zip 内的 `manifest.json` 推导（脚本没有 `--version`）；`updated_at` 同版本沿用旧值；sha256 用实算值、但记录不一致必须让 CI 失败；URL 全为相对路径；新脚本复用 `refresh_res_manifest` 的原子写与总表汇总 | 直接复用分发包 `manifest.json` 当版本接口 / 让脚本接受 `--version` / 引入应用层 API / 写死 host 的绝对 URL | 分发包清单是给首页渲染的混合结构，字段语义会随展示需求漂移；任何另记的版本号都会与包不一致（tag 与包版本脱钩是真实事故面）；静态只读挂载没有写接口；绝对 URL 换 IP / 域名就失效 |
 | D19 | 页面规则（临时规则）**持久化**到扩展自身状态区，重启浏览器后仍生效，直到手动撤销；WebDAV 同步用**独立小文件** `zeroomega-temprules.json`，每次修改「先拉 → 按站点三方合并（base = 上次与服务器一致的副本）→ 后推」，强 ETag 时 `If-Match` 防覆盖；同一站点两边都改时本机这次点击优先；开关默认开 | 继续只存 `chrome.storage.session`；把规则塞进 options 整体备份；last-write-wins 整文件覆盖；按时间戳逐条比较 | 华总要求「重开浏览器还是本页且勾选好」，会话存储做不到；规则随 popup 点击高频变化，进整体备份会让每次点击都推一份完整 options，且「从备份恢复」会把别的设备刚设的规则冲掉；整文件覆盖会丢另一台设备对其它站点的修改；三方合并只需一份 base，不依赖设备时钟 |
 | D20 | 更新检查放 **background 定时**（启动 + 每 6h）+ 系统通知（每版本一次），UI 移到设置页「关于」，popup 不再放更新入口；版本源改为 R15 的 `version.json`；仓库内置最新 **PSL 全表**，不再用 tldjs 自带的 2017 年旧表 | popup 底部常驻两行（D17 原方案）；Native Messaging 全自动安装；升级 tldjs 大版本 | popup 空间宝贵，更新是低频事；自动检查 + 通知解决「忘了看」，复制命令 + 重载解决「怎么装」，不往系统装额外组件（华总选方案 A）。旧后缀表把 `ai.helunox.cc.cd` 的主域算成 `cc.cd`，「整个主域」会误伤所有 cc.cd 站点；只换数据表、不换库，改动最小 |
+| D21 | service worker 里按 tabId 的 UI / 刷新调用一律用**回调 + 读 `lastError`**，不依赖 Promise；遇到标签已关闭就静默跳过 | 给每个 Promise 链补 `.catch()` / 忽略 | 标签可能在事件与调用之间被关闭，未处理的 rejection 会进扩展「错误」面板；回调式同时兼容 Chrome 与 Firefox 的 `chrome.*` 命名空间，且失败时本来就无事可做 |

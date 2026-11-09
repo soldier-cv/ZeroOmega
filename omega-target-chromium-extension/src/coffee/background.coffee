@@ -58,6 +58,10 @@ chrome.runtime.onInstalled.addListener( (details) ->
 
 dispName = (name) -> chrome.i18n.getMessage('profile_' + name) || name
 
+# A tab can close between an event and a per-tab call. Reading lastError in a
+# callback keeps that race from surfacing as an unhandled promise rejection.
+ignoreTabError = -> chrome.runtime.lastError
+
 zeroBackground = (zeroStorage, opts) ->
   unhandledPromises = []
   unhandledPromisesId = []
@@ -313,7 +317,7 @@ zeroBackground = (zeroStorage, opts) ->
       title = chrome.i18n.getMessage(
         'browserAction_titleInspect', urlDisp) + '\n'
       title += action.title
-      chrome.action.setTitle(title: title, tabId: tab.id)
+      chrome.action.setTitle({title: title, tabId: tab.id}, ignoreTabError)
       tabs.setTabBadge(tab, {
         text: '#'
         color: action.resultColor
@@ -421,15 +425,16 @@ zeroBackground = (zeroStorage, opts) ->
   refreshActivePageIfEnabled = ->
     return if zeroStorage['omega.local.refreshOnProfileChange'] == 'false'
     chrome.tabs.query {active: true, lastFocusedWindow: true}, (tabs) ->
+      return if tabs.length == 0
       url = tabs[0].pendingUrl or tabs[0].url
       return if not url
       return if url.substr(0, 6) == 'chrome'
       return if url.substr(0, 6) == 'about:'
       return if url.substr(0, 4) == 'moz-'
       if tabs[0].pendingUrl
-        chrome.tabs.update(tabs[0].id, {url: url})
+        chrome.tabs.update(tabs[0].id, {url: url}, ignoreTabError)
       else
-        chrome.tabs.reload(tabs[0].id, {bypassCache: true})
+        chrome.tabs.reload(tabs[0].id, {bypassCache: true}, ignoreTabError)
 
 
   resetAllOptions = ->

@@ -351,6 +351,10 @@ class Options
         @applyProfile(@_currentProfileName, update: false)
       else
         @_setAvailableProfiles() if profilesChanged
+    # A removed or renamed profile can leave temp rules pointing at a name that
+    # no longer exists even when the current profile was not affected.
+    if profilesChanged and @_pruneTempRules()
+      @_tempRulesChanged?()
     if args?.persist ? true
       for key in removed
         delete changes[key]
@@ -527,17 +531,7 @@ class Options
         @_tempProfile.color = profile.color
         OmegaPac.Profiles.updateRevision(@_tempProfile)
 
-      removedKeys = []
-      for own key, list of @_tempProfileRulesByProfile
-        if not OmegaPac.Profiles.byKey(key, @_options)
-          removedKeys.push(key)
-          for rule in list
-            rule.profileName = null
-            @_tempProfile.rules.splice(@_tempProfile.rules.indexOf(rule), 1)
-      if removedKeys.length > 0
-        for key in removedKeys
-          delete @_tempProfileRulesByProfile[key]
-        OmegaPac.Profiles.updateRevision(@_tempProfile)
+      @_tempRulesChanged?() if @_pruneTempRules()
 
       @_watchingProfiles = OmegaPac.Profiles.allReferenceSet(@_tempProfile,
         @_options, profileNotFound: @_profileNotFound.bind(this))
@@ -676,6 +670,23 @@ class Options
 
     if @_options['-startupProfileName'] == fromName
       changes['-startupProfileName'] = toName
+
+    # Temp rules reference profiles by name too. Without this they would be
+    # dropped by the next applyProfile as if the profile had been deleted.
+    if @_tempProfile?
+      tempRulesChanged = false
+      for rule in @_tempProfile.rules when rule.profileName == fromName
+        rule.profileName = toName
+        tempRulesChanged = true
+      if tempRulesChanged
+        OmegaPac.Profiles.updateRevision(@_tempProfile)
+        fromKey = OmegaPac.Profiles.nameAsKey(fromName)
+        toKey = OmegaPac.Profiles.nameAsKey(toName)
+        rulesByProfile = @_tempProfileRulesByProfile[fromKey]
+        if rulesByProfile?
+          delete @_tempProfileRulesByProfile[fromKey]
+          @_tempProfileRulesByProfile[toKey] = rulesByProfile
+        @_tempRulesChanged?()
 
     return changes
 
@@ -853,6 +864,36 @@ class Options
     OmegaPac.Profiles.updateRevision(@_tempProfile)
     return Promise.resolve() if not @_currentProfileName
     @applyProfile(@_currentProfileName)
+
+  ###*
+  # Called when temp rules change outside addTempRule/replaceTempRules (a
+  # profile rename, or dropping rules for a profile that was deleted), so a
+  # target can persist and sync them.
+  ###
+  _tempRulesChanged: -> null
+
+  ###*
+  # Remove temp rules whose profile no longer exists. Applies to every rule,
+  # including ones not active in the current PAC.
+  # @returns {bool} Whether any rule was removed.
+  ###
+  _pruneTempRules: ->
+    return false unless @_tempProfile?
+    removed = false
+    removedKeys = []
+    for own key, list of @_tempProfileRulesByProfile
+      if not OmegaPac.Profiles.byKey(key, @_options)
+        removedKeys.push(key)
+        for rule in list
+          rule.profileName = null
+          index = @_tempProfile.rules.indexOf(rule)
+          @_tempProfile.rules.splice(index, 1) if index >= 0
+          removed = true
+    if removed
+      for key in removedKeys
+        delete @_tempProfileRulesByProfile[key]
+      OmegaPac.Profiles.updateRevision(@_tempProfile)
+    return removed
 
   ###*
   # Insert a temp rule into the temp profile.

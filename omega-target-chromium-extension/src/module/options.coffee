@@ -104,6 +104,11 @@ class ChromeOptions extends OmegaTarget.Options
       @onTempRulesChanged?() if notify
     )
 
+  # A profile rename or deletion rewrites/drops its temp rules in the base
+  # class; persist the result and let the WebDAV sync pick it up.
+  _tempRulesChanged: ->
+    @_saveTempRules()
+
   addTempRule: (domain, profileName, toggle) ->
     super(domain, profileName, toggle).then (result) =>
       @_saveTempRules().return(result)

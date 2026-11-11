@@ -152,3 +152,63 @@ describe 'Options#replaceTempRules', ->
       options.addTempRule('new.com', 'proxy')
     .then ->
       options.queryTempRule('new.com').should.equal 'proxy'
+
+describe 'Options#profile references and temp rules', ->
+  createOptions = (opts = {}) ->
+    log = {method: sinon.stub(), error: sinon.stub()}
+    options = new Options(null, null, log)
+    options._options =
+      '+switch':
+        name: 'switch'
+        profileType: 'SwitchProfile'
+        defaultProfileName: 'direct'
+        rules: []
+      '+proxy':
+        name: 'proxy'
+        profileType: 'FixedProfile'
+        proxyForHttp: {scheme: 'http', host: '127.0.0.1', port: 8888}
+    if opts.withProxy2
+      options._options['+proxy2'] =
+        name: 'proxy2'
+        profileType: 'FixedProfile'
+        proxyForHttp: {scheme: 'http', host: '127.0.0.1', port: 8889}
+    options._currentProfileName = 'switch'
+    options.applyProfile = sinon.stub().returns(Promise.resolve())
+    options._tempRulesChanged = sinon.stub()
+    unless opts.realSetOptions
+      options._setOptions = sinon.stub().returns(Promise.resolve())
+    options
+
+  it 'should move temp rules to the new name when a profile is renamed', ->
+    options = createOptions()
+    options.addTempRule('postest.findfine.com', 'proxy').then ->
+      options.renameProfile('proxy', 'proxy2')
+    .then ->
+      options.exportTempRules().should.eql
+        'postest.findfine.com': 'proxy2'
+      options.queryTempRule('postest.findfine.com').should.equal 'proxy2'
+      options._tempProfileRulesByProfile['+proxy2'].should.have.length 1
+      should.not.exist options._tempProfileRulesByProfile['+proxy']
+      options._tempRulesChanged.should.have.been.called
+
+  it 'should move temp rules when references are replaced', ->
+    options = createOptions(withProxy2: true)
+    options.addTempRule('postest.findfine.com', 'proxy').then ->
+      options.replaceRef('proxy', 'proxy2')
+    .then ->
+      options.exportTempRules().should.eql
+        'postest.findfine.com': 'proxy2'
+      options._tempRulesChanged.should.have.been.called
+
+  it 'should drop and report temp rules for a deleted profile', ->
+    options = createOptions(realSetOptions: true)
+    options._state = {set: sinon.stub().returns(Promise.resolve())}
+    options._storage =
+      set: sinon.stub().returns(Promise.resolve())
+      remove: sinon.stub().returns(Promise.resolve())
+    options.addTempRule('postest.findfine.com', 'proxy').then ->
+      options._setOptions({'+proxy': undefined})
+    .then ->
+      options.exportTempRules().should.eql {}
+      options._tempRulesChanged.should.have.been.called
+

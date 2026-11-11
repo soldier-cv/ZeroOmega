@@ -387,13 +387,17 @@
 - **验证（2026-11-09）**：`omega-web` 与扩展模块 `grunt` 全绿；真实 Chromium 端到端（临时目录 harness，不入库）22 条断言全过：新建站点默认全局；切本页写入 host 规则（默认 auto switch）；改选替换同一条；切全局删除；切回本页恢复上次选择；另一站点独立；单层域名（host === domain）正常；重启后规则 / PAC / 本页勾选保留；旧的整域规则只在提示行显示、不伪装成本页规则；切本页写 host 规则覆盖它、切全局只删这一条；系统代理为全局时本页控件隐藏且规则保留。
 - **已知限制**：旧的整域规则在「全局」视图下只能通过提示行撤销；popup 不再创建整域规则（临时规则管理页目前只能删、不能建）。
 
-### R19. 页面规则与情景模式改名 / 删除不一致 — 状态：**已复现，待修**（2026-11-09）
+### R19. 页面规则与情景模式改名 / 删除不一致 — 状态：**已修复**（2026-11-09）
 
 - **现象**：`renameProfile` / `replaceRef` 会更新其它 profile 内的引用与 `-startupProfileName`，但**不更新页面规则**（`_tempProfile.rules` / `_tempProfileRulesByProfile`）。
   - 改名后，下一次 `applyProfile` 的清理会把引用旧名字的规则静默移除；重启时 `replaceTempRules` 会过滤掉不存在的 profile 并保存，规则**永久消失**。
   - 删除 profile 时同理：规则可能悬空到下一次 PAC 重建，随后 `_profileNotFound` 把它映射成 `VirtualProfile → direct`。
 - **复现（真实 Chromium harness）**：设置 `postest.findfine.com → proxy` 后调用 `renameProfile('proxy', 'proxy2')`，`getTempRules()` 变成 `{}`，popup 显示「本页 · 跟随全局」；点一下新 profile 才恢复。
-- **建议修法**：在 `omega-target` 的 `_replaceRefChanges` 里同步改写 temp rules 的 `profileName` 并重建 `_tempProfileRulesByProfile`；删除 profile 时同样清理；`ChromeOptions` 通过 `_saveTempRules()` 持久化并触发 WebDAV 同步。注意未受影响时不要无故重建 PAC。
+- **实现（2026-11-09）**：
+  - `omega-target/src/options.coffee`：`_replaceRefChanges()` 同步改写 temp rules 的 `profileName`、迁移 `_tempProfileRulesByProfile` 的键并更新 revision；抽出 `_pruneTempRules()` 统一清理引用已不存在 profile 的规则，`applyProfile()` 与 `_setOptions()`（profilesChanged 时）都会调用；新增 `_tempRulesChanged()` 空钩子供 target 持久化。
+  - `omega-target-chromium-extension/src/module/options.coffee`：`_tempRulesChanged` 覆盖为 `_saveTempRules()`（落盘 + 触发 WebDAV 同步）。
+  - `omega-target/test/temp_rules.coffee`：新增 3 例（改名跟随、替换引用跟随、删除时清理并上报）。
+- **验证（2026-11-09）**：`omega-target` 13 passing / 0 failing；`omega-pac` 143 passing / 1 failing（既有 SOCKS5）；真实 Chromium 端到端 harness 全过：改名后规则与 popup 都指向新名字、重启后仍是新名字；删除 profile 后规则立即消失、popup 回到全局、重启后不会复活；`probe6`（R18）与重启/图标回归用例无回归。
 
 ## 4. 项目基础架构
 

@@ -1248,9 +1248,6 @@ msgstr "Report issues"
 msgid "popup_errorLog"
 msgstr "Save error log"
 
-msgid "popup_tempRuleScope"
-msgstr "Scope"
-
 msgid "popup_tempRuleUnavailableHelp"
 msgstr "Temp rules are unavailable with the current global profile. Choose a switch profile such as Auto Switch first."
 
@@ -1261,7 +1258,7 @@ msgid "popup_modePage"
 msgstr "This page"
 
 msgid "popup_modeHelp"
-msgstr "Click to switch what the list below changes: every tab, or a temp rule for this page only. Removing a rule uses the button above the list."
+msgstr "Click to switch what the list below changes: every tab, or this site. Choosing a profile here saves a rule for the site; switching back to global removes it."
 
 msgid "popup_globalProfiles"
 msgstr "Global profiles"
@@ -1275,23 +1272,8 @@ msgstr "Using $PROFILE$ for every tab"
 msgid "popup_pageUsing"
 msgstr "Using $PROFILE$ for this site"
 
-msgid "popup_pageFollowGlobal"
-msgstr "Following the global profile: $PROFILE$"
-
-msgid "popup_clearPageRule"
-msgstr "Remove page rule"
-
-msgid "popup_clearDomainRule"
-msgstr "Remove domain rule"
-
-msgid "popup_tempRuleLifetime"
-msgstr "Page rules are saved and survive a browser restart; with WebDAV set up they sync across devices"
-
 msgid "popup_domainOverride"
 msgstr "This page uses $PROFILE$ through a temp rule for every site under $DOMAIN$"
-
-msgid "popup_hostOverride"
-msgstr "This page uses $PROFILE$ through its own temp rule for $DOMAIN$"
 
 msgid "popup_domainOverrideClear"
 msgstr "Remove"

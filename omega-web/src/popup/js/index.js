@@ -37,8 +37,8 @@
   }
 
   // A click on a profile row does whatever the mode button says: in global
-  // mode it becomes the global profile; in page mode it is written as a temp
-  // rule for the chosen scope only.
+  // mode it becomes the global profile; in page mode it becomes this site's
+  // own rule.
   function chooseProfile(profileName) {
     $script.ready('om-target', function() {
       if (OmegaPopup.mode === 'page') {
@@ -67,8 +67,8 @@
 
   function addTempRule(domain, profileName, toggle) {
     $script.ready('om-target', function() {
-      // The popup stays open: the page route is applied immediately and the
-      // header reports it, so the user can switch scope or profile again.
+      // The popup stays open: the site rule is applied immediately and the
+      // header reports it, so the user can switch profile again.
       OmegaTargetPopup.addTempRule(domain, profileName, toggle);
     });
   }

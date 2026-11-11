@@ -1114,9 +1114,6 @@ msgstr "反馈问题"
 msgid "popup_errorLog"
 msgstr "保存错误日志"
 
-msgid "popup_tempRuleScope"
-msgstr "作用域"
-
 msgid "popup_tempRuleUnavailableHelp"
 msgstr "当前全局情景模式不支持临时规则。切换到自动切换等情景模式后即可使用。"
 
@@ -1127,7 +1124,7 @@ msgid "popup_modePage"
 msgstr "本页"
 
 msgid "popup_modeHelp"
-msgstr "点击切换下方列表改的是什么：所有标签页，或只对本页生效的临时规则。撤销规则用列表标题旁的按钮。"
+msgstr "点击切换下方列表改的是全部标签页还是本页。在本页选一个情景模式会为当前站点保存一条规则；切回全局会删除这条规则。"
 
 msgid "popup_globalProfiles"
 msgstr "全局情景模式"
@@ -1141,23 +1138,8 @@ msgstr "所有标签页使用 $PROFILE$"
 msgid "popup_pageUsing"
 msgstr "本页使用 $PROFILE$"
 
-msgid "popup_pageFollowGlobal"
-msgstr "跟随全局：$PROFILE$"
-
-msgid "popup_clearPageRule"
-msgstr "撤销本页规则"
-
-msgid "popup_clearDomainRule"
-msgstr "撤销主域规则"
-
-msgid "popup_tempRuleLifetime"
-msgstr "页面规则会保存下来，重启浏览器后仍然生效；开启 WebDAV 后在设备间同步"
-
 msgid "popup_domainOverride"
 msgstr "本页实际走 $PROFILE$：来自 $DOMAIN$ 下所有站点共用的临时规则"
-
-msgid "popup_hostOverride"
-msgstr "本页实际走 $PROFILE$：来自 $DOMAIN$ 自己的临时规则"
 
 msgid "popup_domainOverrideClear"
 msgstr "撤销"

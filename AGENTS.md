@@ -366,6 +366,35 @@
 - **未改（同类但属于扩展页面，不在本次报告的 service worker 控制台）**：`omega_target_web.coffee` 的 `refreshActivePage`、`popup/network/js/tab.js` 的刷新 / 切换按钮、`popup/network/js/index.js` 的 `autoDiscardable` 调用；它们会在各自页面控制台报同类错误，可按需一并兜底。
 - **验证（2026-11-09）**：`omega-target-chromium-extension` 的 `grunt` 全绿（coffeelint 28 files lint free）；构建产物已确认把回调编进 `build/js/background.js` 与 `build/js/omega_target_chromium_extension.min.js`。
 
+### R18. popup 收敛为「一址一规则」：模式即路由，去掉作用域与撤销按钮 — 状态：**构建通过，真实 Chromium 端到端校验通过，待实机确认**（2026-11-09）
+
+- **背景**：华总指出「撤销本页规则 / 撤销主域规则」与「全局 / 本页」并存很绕。他的模型是：一个站点要么用全局、要么用本页；本页永远有勾选（默认当前全局情景模式，如 auto switch；有记录用记录）；切换会存储；不需要显式的“撤销规则”。代码审计同时确认了旧模型里“模式只是视图、规则仍在生效”的根源。
+- **已确认决策（D22）**：
+  - 本页规则只按**当前主机**（完整 hostname）写，去掉「子域 / 主域」作用域与分段控件。
+  - **模式即路由**：切到本页 = 为该 host 写入一条规则（该 host 上次选中的 profile；没有记录则用当前全局 profile）；切到全局 = 删除该 host 的规则。
+  - 列表行点击只改写这一条 host 规则；再次点击已生效项幂等；点击永不删除。
+  - 撤销按钮移除（本页/主域都不再有）。只有「更宽的主域规则」提示行保留一个显式撤销：旧的整域规则不归 popup 管，删它会改变同域其它站点。
+  - 默认勾选**当前全局情景模式**（不硬编码 auto switch）；全局为 SystemProfile / 外部接管 / 不可包含时本页不可用（胶囊隐藏）。
+  - 上次选择按 host 记在 `localStorage`（`omega.popup.pageProfile:<host>`）；切回全局只删规则、不清记忆。模式不再单独存偏好——**有规则 = 本页，无规则 = 全局**，规则本身是状态。
+  - 受更宽规则覆盖时（本 host 没有自己的规则），popup 仍显示「全局」+ 提示行；此时切到本页会写一条 host 规则覆盖它（只影响本 host）。
+- **实现（2026-11-09）**：
+  - `omega-web/src/popup/index.html`：删除 `#js-scope` 与 `#js-clear-rule`。
+  - `omega-web/src/popup/js/profiles.js`：移除 `pageScopes` / `pageScope` / 作用域恢复 / 分段控件 / 撤销逻辑；新增 `hostRule()`、`defaultPageProfile()`（记忆 → 当前全局）、`refreshPageInfo()`（写/删后向 background 取一次实际路由，校正更宽规则提示）；`setMode()` 负责写入/删除 host 规则；`applyPageProfile()` 只写 host；`renderPageSection()` 由规则存在性决定模式；`otherRule()` 只报告更宽规则。
+  - `omega-web/src/popup/css/index.css`：删除 `.om-scope` / `.om-segmented*` / `.om-section-action` 死样式。
+  - `omega-web/src/popup/js/index.js`：仅更新注释。
+  - i18n（`en_US` + `zh_CN`）：改写 `popup_modeHelp`；删 `popup_tempRuleScope`、`popup_pageFollowGlobal`、`popup_clearPageRule`、`popup_clearDomainRule`、`popup_hostOverride`。
+- **取代**：R10 的「子域 / 主域分段」、R13 / D16 的显式撤销、D15 的「模式作为视图偏好」。D14 的「一次点击只碰当前站点这一条」仍成立且更强（popup 只写 host key）。
+- **验证（2026-11-09）**：`omega-web` 与扩展模块 `grunt` 全绿；真实 Chromium 端到端（临时目录 harness，不入库）22 条断言全过：新建站点默认全局；切本页写入 host 规则（默认 auto switch）；改选替换同一条；切全局删除；切回本页恢复上次选择；另一站点独立；单层域名（host === domain）正常；重启后规则 / PAC / 本页勾选保留；旧的整域规则只在提示行显示、不伪装成本页规则；切本页写 host 规则覆盖它、切全局只删这一条；系统代理为全局时本页控件隐藏且规则保留。
+- **已知限制**：旧的整域规则在「全局」视图下只能通过提示行撤销；popup 不再创建整域规则（临时规则管理页目前只能删、不能建）。
+
+### R19. 页面规则与情景模式改名 / 删除不一致 — 状态：**已复现，待修**（2026-11-09）
+
+- **现象**：`renameProfile` / `replaceRef` 会更新其它 profile 内的引用与 `-startupProfileName`，但**不更新页面规则**（`_tempProfile.rules` / `_tempProfileRulesByProfile`）。
+  - 改名后，下一次 `applyProfile` 的清理会把引用旧名字的规则静默移除；重启时 `replaceTempRules` 会过滤掉不存在的 profile 并保存，规则**永久消失**。
+  - 删除 profile 时同理：规则可能悬空到下一次 PAC 重建，随后 `_profileNotFound` 把它映射成 `VirtualProfile → direct`。
+- **复现（真实 Chromium harness）**：设置 `postest.findfine.com → proxy` 后调用 `renameProfile('proxy', 'proxy2')`，`getTempRules()` 变成 `{}`，popup 显示「本页 · 跟随全局」；点一下新 profile 才恢复。
+- **建议修法**：在 `omega-target` 的 `_replaceRefChanges` 里同步改写 temp rules 的 `profileName` 并重建 `_tempProfileRulesByProfile`；删除 profile 时同样清理；`ChromeOptions` 通过 `_saveTempRules()` 持久化并触发 WebDAV 同步。注意未受影响时不要无故重建 PAC。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -412,7 +441,7 @@ cd omega-target && npm test
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup「本页」、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
 - **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时与每 10 分钟（`omega.tempRulesPull` 闹钟）各拉一次。
-- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊（点击切换，只切换视图、不改规则）+ 副标题写明实际路由（本页无规则时写「跟随全局：X」），下面**同一套**情景模式列表。模式与作用域按 host 记在 `localStorage`（`omega.popup.mode:<host>` / `omega.popup.scope:<host>`），重开 popup 保持上次的选择。列表行点击**只应用、幂等**；撤销用列表标题旁的「撤销本页规则 / 撤销主域规则」，整域规则另有提示行 + 「撤销」。切到「全局」点选应用该全局 profile；切到「本页」点选只写入**当前作用域**的那一条临时规则，作用域切换不搬规则；本 host 没有自己的规则时，列表勾选实际生效的继承整域路由，并在两种视图都用提示行说明。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
+- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊 + 副标题写明实际路由，下面**同一套**情景模式列表）。**模式即路由**：切到「本页」会为当前完整 hostname 写入（或恢复上次选择的）一条页面规则，默认取当前全局情景模式；切到「全局」删除该 host 的规则。**有规则 = 本页，无规则 = 全局**，不再单独存模式偏好；上次在「本页」选的 profile 按 host 记在 `localStorage`（`omega.popup.pageProfile:<host>`），切回全局只删规则、不清记忆。列表行点击只改写这一条 host 规则、**只应用不删除**；没有作用域选择，也没有「撤销本页规则 / 撤销主域规则」按钮。更宽的旧整域规则（popup 已不再创建）在提示行报告，并提供唯一的显式「撤销」——删它会影响同域其它站点。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **更新检查**：background 的 `module/update_check.coffee` 读 R15 端点 `version.json`，打开浏览器时（距上次 >30 分钟）与每 6 小时（`omega.updateCheck` 闹钟）各查一次；发现新版本弹一次系统通知（每个版本一次），点击打开设置页「关于」。「关于」页的「更新」分组显示状态、命令原文与「复制更新命令 / 重载扩展 / 立即检查」。未打包扩展不能自更新，所以安装仍是 PowerShell 命令 + `chrome.runtime.reload()`。popup 里不再有更新入口。
 - **版本查询接口**：`/res/zeroomega/version.json`（机器读，字段与顺序见 R15）+ `version.txt`（一行 `curl` 即得 `vX.Y.Z`）。CI publish 在刷新分发包清单后调用 `tools/ci/write_version_endpoint.py` 原子落盘，版本号取自分发 zip 内的 `manifest.json`；分发包卡片与 `/res/manifest.json` 总表会自动带一条 `version.json` link。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
@@ -442,3 +471,4 @@ cd omega-target && npm test
 | D19 | 页面规则（临时规则）**持久化**到扩展自身状态区，重启浏览器后仍生效，直到手动撤销；WebDAV 同步用**独立小文件** `zeroomega-temprules.json`，每次修改「先拉 → 按站点三方合并（base = 上次与服务器一致的副本）→ 后推」，强 ETag 时 `If-Match` 防覆盖；同一站点两边都改时本机这次点击优先；开关默认开 | 继续只存 `chrome.storage.session`；把规则塞进 options 整体备份；last-write-wins 整文件覆盖；按时间戳逐条比较 | 华总要求「重开浏览器还是本页且勾选好」，会话存储做不到；规则随 popup 点击高频变化，进整体备份会让每次点击都推一份完整 options，且「从备份恢复」会把别的设备刚设的规则冲掉；整文件覆盖会丢另一台设备对其它站点的修改；三方合并只需一份 base，不依赖设备时钟 |
 | D20 | 更新检查放 **background 定时**（启动 + 每 6h）+ 系统通知（每版本一次），UI 移到设置页「关于」，popup 不再放更新入口；版本源改为 R15 的 `version.json`；仓库内置最新 **PSL 全表**，不再用 tldjs 自带的 2017 年旧表 | popup 底部常驻两行（D17 原方案）；Native Messaging 全自动安装；升级 tldjs 大版本 | popup 空间宝贵，更新是低频事；自动检查 + 通知解决「忘了看」，复制命令 + 重载解决「怎么装」，不往系统装额外组件（华总选方案 A）。旧后缀表把 `ai.helunox.cc.cd` 的主域算成 `cc.cd`，「整个主域」会误伤所有 cc.cd 站点；只换数据表、不换库，改动最小 |
 | D21 | service worker 里按 tabId 的 UI / 刷新调用一律用**回调 + 读 `lastError`**，不依赖 Promise；遇到标签已关闭就静默跳过 | 给每个 Promise 链补 `.catch()` / 忽略 | 标签可能在事件与调用之间被关闭，未处理的 rejection 会进扩展「错误」面板；回调式同时兼容 Chrome 与 Firefox 的 `chrome.*` 命名空间，且失败时本来就无事可做 |
+| D22 | 页面规则收敛为**一址一规则**：只按当前完整 hostname；**模式即路由**（切到本页=写入/恢复该 host 的规则，默认当前全局 profile；切到全局=删除该 host 规则）；去掉作用域选择与撤销按钮；上次选择按 host 记在 `localStorage`；更宽的旧整域规则只在提示行报告 + 显式撤销 | 保持 R10/R13 的「作用域 + 视图偏好 + 显式撤销」；或切到全局时连带删主域规则 | 华总要的是「一个站点要么全局、要么本页，且切换要记住；本页永远有勾选」；一旦模式=视图、规则独立存在，就必须有撤销按钮，且“全局”视图下规则仍在生效，显示与实际路由脱节。整域规则是共享的，删它会连累兄弟子域，所以只保留提示行里的显式撤销，不并入 popup 的日常操作 |

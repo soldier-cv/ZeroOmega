@@ -51,7 +51,8 @@
   }
 
   // Remove a temp rule without closing the popup, so the page card can update
-  // its state in place.
+  // its state in place. Force delete (-1) so a stale pageInfo copy cannot turn
+  // this into a toggle that re-adds the rule.
   function clearTempRule(domain, profileName) {
     $script.ready('om-target', function() {
       OmegaTargetPopup.addTempRule(domain, profileName, -1);

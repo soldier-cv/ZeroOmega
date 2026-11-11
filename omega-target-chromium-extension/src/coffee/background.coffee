@@ -422,17 +422,49 @@ zeroBackground = (zeroStorage, opts) ->
     else
       obj
 
-  refreshActivePageIfEnabled = ->
+  # Effective proxy result for a URL, evaluated synchronously. Only the
+  # terminal result of the profile chain matters: switching between global
+  # and page mode with the same profile rewrites the PAC script but still
+  # resolves this URL to the same proxy, so a reload would only discard the
+  # page's state. Null means "cannot tell", which keeps the old behaviour.
+  routeResult = (url) ->
+    return null unless url
+    return null if url.substr(0, 6) == 'chrome' or
+      url.substr(0, 6) == 'about:' or url.substr(0, 4) == 'moz-'
+    try
+      request = OmegaPac.Conditions.requestFromUrl(url)
+      results = options.matchProfileSync(request).results
+      last = results?[results.length - 1]
+      return null unless last?
+      result = if Array.isArray(last) then last[0] else last.profileName
+      return null unless result
+      # A rule and a SwitchProfile default both name a profile; resolve
+      # builtin terminals so 'direct' and '+direct' compare as the same route.
+      name = if result.charAt(0) == '+' then result.substring(1) else result
+      return 'DIRECT' if name == 'direct'
+      return 'SYSTEM' if name == 'system'
+      result
+    catch e
+      null
+
+  refreshActivePageIfEnabled = (before, url) ->
     return if zeroStorage['omega.local.refreshOnProfileChange'] == 'false'
     chrome.tabs.query {active: true, lastFocusedWindow: true}, (tabs) ->
-      return if tabs.length == 0
-      url = tabs[0].pendingUrl or tabs[0].url
-      return if not url
-      return if url.substr(0, 6) == 'chrome'
-      return if url.substr(0, 6) == 'about:'
-      return if url.substr(0, 4) == 'moz-'
+      ignoreTabError()
+      return if not tabs? or tabs.length == 0
+      tabUrl = tabs[0].pendingUrl or tabs[0].url
+      return if not tabUrl
+      return if tabUrl.substr(0, 6) == 'chrome'
+      return if tabUrl.substr(0, 6) == 'about:'
+      return if tabUrl.substr(0, 4) == 'moz-'
+      # Only a real route change needs a reload. If either side is unknown,
+      # or the popup's page and the active tab have diverged, reload as before
+      # rather than risk leaving the page on a stale proxy.
+      after = routeResult(url or tabUrl)
+      return if before? and after? and before == after and
+        (not url or url == tabUrl)
       if tabs[0].pendingUrl
-        chrome.tabs.update(tabs[0].id, {url: url}, ignoreTabError)
+        chrome.tabs.update(tabs[0].id, {url: tabUrl}, ignoreTabError)
       else
         chrome.tabs.reload(tabs[0].id, {bypassCache: true}, ignoreTabError)
 
@@ -467,9 +499,16 @@ zeroBackground = (zeroStorage, opts) ->
         )
         return
 
+      # Capture the active page's route before the change, synchronously, so
+      # message ordering is unchanged. Only a real route change reloads it.
+      url = request.activeTabUrl
+      before = if request.refreshActivePage then routeResult(url) else null
       promise = Promise.resolve().then -> method.apply(target, request.args)
       if request.refreshActivePage
-        promise.then refreshActivePageIfEnabled
+        promise.then((result) ->
+          refreshActivePageIfEnabled(before, url)
+          result
+        ).catch(-> return)
       return if request.noReply
 
       promise.then (result) ->

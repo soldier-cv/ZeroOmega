@@ -89,6 +89,37 @@ describe 'Options#addTempRule', ->
       patterns(options).should.eql []
       should.not.exist options.queryTempRule('postest.findfine.com')
 
+  it 'should force-set a rule without ever deleting it', ->
+    options = createOptions()
+    options.addTempRule('postest.findfine.com', 'proxy', 2).then ->
+      # Same profile, stale caller: still there, and no second PAC update.
+      options.addTempRule('postest.findfine.com', 'proxy', 2)
+    .then ->
+      options.queryTempRule('postest.findfine.com').should.equal 'proxy'
+      options.addTempRule('postest.findfine.com', 'direct', 2)
+    .then ->
+      options.queryTempRule('postest.findfine.com').should.equal 'direct'
+      patterns(options).should.eql ['*.postest.findfine.com']
+      options._tempProfileRulesByProfile['+direct'].should.have.length 1
+      options._tempProfileRulesByProfile['+proxy'].should.have.length 0
+
+  it 'should force-delete regardless of the profile name the caller passes', ->
+    options = createOptions()
+    options.addTempRule('postest.findfine.com', 'proxy', 2).then ->
+      # A stale pageInfo copy may name a different profile.
+      options.addTempRule('postest.findfine.com', 'direct', -1)
+    .then ->
+      patterns(options).should.eql []
+      should.not.exist options.queryTempRule('postest.findfine.com')
+      options.exportTempRules().should.eql {}
+
+  it 'should keep force-add from overwriting an existing rule', ->
+    options = createOptions()
+    options.addTempRule('postest.findfine.com', 'proxy', 2).then ->
+      options.addTempRule('postest.findfine.com', 'direct', 1)
+    .then ->
+      options.queryTempRule('postest.findfine.com').should.equal 'proxy'
+
 describe 'Options#replaceTempRules', ->
   createOptions = ->
     log = {method: sinon.stub(), error: sinon.stub()}

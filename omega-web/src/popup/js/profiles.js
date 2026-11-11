@@ -209,13 +209,10 @@
   function writePageRoute(profileName) {
     var info = OmegaPopup.pageInfo;
     if (!info || !info.host || !profileName) return false;
-    var existing = hostRule();
-    // addTempRule toggles, so it is only called when the rule is missing or
-    // points elsewhere; calling it with the same profile would remove it.
-    if (!existing || existing.profileName !== profileName) {
-      if (!OmegaPopup.addTempRule) return false;
-      OmegaPopup.addTempRule(info.host, profileName);
-    }
+    // Force set (2), never toggle: the cached pageInfo copy can lag behind
+    // the background, and a toggle would delete the rule we mean to keep.
+    if (!OmegaPopup.addTempRule) return false;
+    OmegaPopup.addTempRule(info.host, profileName, 2);
     savePref(PROFILE_PREF, profileName);
     rememberRule(profileName);
     return true;

@@ -399,6 +399,31 @@
   - `omega-target/test/temp_rules.coffee`：新增 3 例（改名跟随、替换引用跟随、删除时清理并上报）。
 - **验证（2026-11-09）**：`omega-target` 13 passing / 0 failing；`omega-pac` 143 passing / 1 failing（既有 SOCKS5）；真实 Chromium 端到端 harness 全过：改名后规则与 popup 都指向新名字、重启后仍是新名字；删除 profile 后规则立即消失、popup 回到全局、重启后不会复活；`probe6`（R18）与重启/图标回归用例无回归。
 
+### R20. 切换不改变实际路由时不再刷新页面；本页写入改为显式意图 — 状态：**构建通过，真实 Chromium 端到端校验通过，待实机确认**（2026-11-11）
+
+- **背景（华总反馈）**：①「全局 / 本页切换时，如果具体规则模式没有发生变化，页面不应该刷新；现在同一个情景模式切换也会刷新页面，体验很差」；②「本页切换似乎没有效果，页面刷新但请求没有达到我指定的」（截图：`postest.findfine.com` 显示「本页使用 FIDDLER」且 FIDDLER 已勾选，但请求没走 FIDDLER）。
+- **代码核对 / 复现（真实 Chromium + 本地 HTTP 代理 + service worker 插桩，临时目录 harness 不入库）**：
+  1. `omega_target_popup.js` 的 `callBackgroundNoReply` 对 `applyProfile` / `setDefaultProfile` / `addTempRule` **一律**带 `refreshActivePage: true`；background 的 `refreshActivePageIfEnabled` 在方法完成后无条件 `chrome.tabs.reload(bypassCache)`。实测同一情景模式 全局→本页（PAC 结果都是 `DIRECT`）刷新 1 次，本页→全局再刷新 1 次。
+  2. popup 的 `writePageRoute()` 用 **toggle 语义**调用 `addTempRule(host, profile)`，靠本地 `pageInfo.tempRuleHostProfileName` 判断「是否已生效」才跳过。该缓存可能滞后于 background（刷新竞态、WebDAV 拉取、重启恢复等）：缓存为空而后台已有同一 profile 的规则时，toggle 会把它**删除**；popup 却乐观地显示「本页使用 FIDDLER」。这正是截图与「请求没达到指定 profile」的成因。
+- **已确认决策（D23）**：见决策日志。要点：**只有活动页的实际代理结果变化才刷新**；popup 写入改为显式意图（force set / force delete），不再依赖可能过期的本地视图做 toggle。
+- **实现（2026-11-11）**：
+  - `omega-target/src/options.coffee`：
+    - `addTempRule` 的 `toggle` 新增 **`2` = force set**（缺则加、不同则改、同则不删、绝不删除）；`-1` 改为不依赖传入 `profileName` 的强制删除（原来传入过期名字会走到「改 profile」分支，只改名不删）；`1` 仍为「有则不动」的 force add。顺带修掉：`_pruneTempRules` 留下的 `profileName = null` 悬空条目现在视为不存在，避免重复插入第二份 rule 对象；删除时的 `_tempProfileRulesByProfile` 记账改用 rule 真实指向的 profile。
+    - 抽出同步的 `matchProfileSync(request)`，`matchProfile` 改为包装它（行为不变），供后台在同一 tick 内比较路由。
+  - `omega-web/src/popup/js/profiles.js`：`writePageRoute()` 去掉「靠缓存判断是否跳过」的逻辑，一律 `addTempRule(host, profileName, 2)`；`index.js` 的 `clearTempRule` 保持 `-1`。
+  - `omega-target-chromium-extension/src/js/omega_target_popup.js`：`callBackgroundNoReply` 附带 `activeTabUrl`（取自 `OmegaPopup.pageInfo.url`），让后台不必在改规则前多做一次异步 `chrome.tabs.query`（那会打乱消息顺序）。
+  - `omega-target-chromium-extension/src/coffee/background.coffee`：新增同步 `routeResult(url)`（`matchProfileSync` 取链路末端结果，把 `direct`/`+direct` 归一为 `DIRECT`、`system`/`+system` 归一为 `SYSTEM`）；消息处理在方法执行**前**同步捕获 `before`，方法完成后 `refreshActivePageIfEnabled(before, url)` 再算 `after`，**仅当二者都有且不同**才刷新；任一侧未知、或 popup 传入的 URL 与活动 tab 已不一致时按旧行为刷新（保守）。
+  - `omega-target/test/temp_rules.coffee`：新增 3 例（force set 不删除、force delete 不受传入名字影响、force add 不覆盖已有规则）。
+- **验证（2026-11-11）**：
+  - 单元测试：`omega-target` **16 passing / 0 failing**；`omega-pac` **143 passing / 1 failing**（既有 SOCKS5，与本次无关）；`npm run build` 全绿（coffeelint 全过）；构建产物已核对含 `routeResult` / `matchProfileSync` / `activeTabUrl` / force-set。
+  - 真实 Chromium 端到端（service worker 插桩计 `chrome.tabs.reload`、活动 tab 指向站点、FIDDLER 为真实本地 HTTP 代理）：
+    - 全局→本页（同一 auto switch）**0 次刷新**；本页→全局 **0 次**；来回切换 **0 次**；点已生效的 FIDDLER **0 次**；重复选当前全局 profile **0 次**；本页 `direct`→全局 `auto switch`（实际都是 DIRECT）**0 次**。
+    - 真正改变路由时仍刷新：**本页选 FIDDLER / 改选 direct 各 1 次**，且刷新后的请求确实到达 FIDDLER 代理（`proxyHits` 有记录，PAC `FindProxyForURL` 返回 `PROXY 127.0.0.1:8899`）。
+    - 复现截图场景：手工把 popup 的 `pageInfo` 改成过期（清空 host 规则）后再点已勾选的 FIDDLER，规则仍在、PAC 仍走 FIDDLER、不产生重复规则；过期状态下切回全局仍真的删除规则。
+    - 回归：`probe6`（R18）22 条全过；WebDAV 双设备同步（推送 / 合并 / 重启 / 收敛 / 撤销传播 / 设置页更新分组）全过；`omega_target_popup.js` 与构建产物逐字节一致。
+- **未改（独立路径）**：Angular 版 `popup.coffee` / `omega_target_web.coffee` 有自己的 `omegaTarget.refreshActivePage()`（用于「添加条件 / 请求信息」表单），不走 `refreshActivePage` 消息标志；主菜单用的是原生 JS popup，本次以其为范围。
+- **已知边界**：`routeResult` 比较的是链路末端结果，不是整段链路；若两个不同配置的中间跳数最终落到同一代理，也按「未变化」不刷新（符合用户诉求：实际路由没变就不该打断页面）。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -476,3 +501,4 @@ cd omega-target && npm test
 | D20 | 更新检查放 **background 定时**（启动 + 每 6h）+ 系统通知（每版本一次），UI 移到设置页「关于」，popup 不再放更新入口；版本源改为 R15 的 `version.json`；仓库内置最新 **PSL 全表**，不再用 tldjs 自带的 2017 年旧表 | popup 底部常驻两行（D17 原方案）；Native Messaging 全自动安装；升级 tldjs 大版本 | popup 空间宝贵，更新是低频事；自动检查 + 通知解决「忘了看」，复制命令 + 重载解决「怎么装」，不往系统装额外组件（华总选方案 A）。旧后缀表把 `ai.helunox.cc.cd` 的主域算成 `cc.cd`，「整个主域」会误伤所有 cc.cd 站点；只换数据表、不换库，改动最小 |
 | D21 | service worker 里按 tabId 的 UI / 刷新调用一律用**回调 + 读 `lastError`**，不依赖 Promise；遇到标签已关闭就静默跳过 | 给每个 Promise 链补 `.catch()` / 忽略 | 标签可能在事件与调用之间被关闭，未处理的 rejection 会进扩展「错误」面板；回调式同时兼容 Chrome 与 Firefox 的 `chrome.*` 命名空间，且失败时本来就无事可做 |
 | D22 | 页面规则收敛为**一址一规则**：只按当前完整 hostname；**模式即路由**（切到本页=写入/恢复该 host 的规则，默认当前全局 profile；切到全局=删除该 host 规则）；去掉作用域选择与撤销按钮；上次选择按 host 记在 `localStorage`；更宽的旧整域规则只在提示行报告 + 显式撤销 | 保持 R10/R13 的「作用域 + 视图偏好 + 显式撤销」；或切到全局时连带删主域规则 | 华总要的是「一个站点要么全局、要么本页，且切换要记住；本页永远有勾选」；一旦模式=视图、规则独立存在，就必须有撤销按钮，且“全局”视图下规则仍在生效，显示与实际路由脱节。整域规则是共享的，删它会连累兄弟子域，所以只保留提示行里的显式撤销，不并入 popup 的日常操作 |
+| D23 | **只有活动页的实际代理结果变化才刷新页面**（消息处理前同步算 `before`、方法完成后算 `after`，相同则跳过刷新；任一侧未知或 URL 与活动 tab 不一致时保守刷新）；popup 写规则改用**显式意图**（`addTempRule` 的 `2` = force set、`-1` = force delete），不再用 toggle 语义 + 可能过期的本地 `pageInfo` 判断 | 维持「每次改动都 `tabs.reload`」；只在 popup 侧补「已生效就跳过」判断；改用 profile 名称字符串比较决定是否刷新 | 同一情景模式在全局/本页间切换时 PAC 结果不变，刷新只会丢表单/滚动/播放状态。toggle 语义把「设置 FIDDLER」变成「删除 FIDDLER 规则」：popup 缓存滞后于后台时，界面显示已勾选而实际请求走全局，正是华总截图里「切了没效果」的成因。显式意图让写入幂等、与视图状态无关；比较「实际路由」而不是「配置文本」，才不会把等价改写误判成变化 |

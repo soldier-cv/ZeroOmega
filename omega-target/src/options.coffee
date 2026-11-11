@@ -757,8 +757,9 @@ class Options
   # a subdomain is effective for that host and all of its subdomains.
   # @param {String} domain The domain for the temp rule.
   # @param {String} profileName The profile to apply for the domain.
-  # @param {1, -1, undefined, null, 0}
+  # @param {1, 2, -1, undefined, null, 0}
   # 1: force add temp rule;
+  # 2: force set (add or update, never remove);
   # -1: force delete temp rule;
   # 0, null or undefined : toggle it
   # @returns {Promise} A promise which is fulfilled when the rule is applied.
@@ -771,16 +772,29 @@ class Options
       return Promise.reject new ProfileNotExistError(profileName)
     if not @_tempProfile?
       @_createTempProfile()
-    
+
     changed = 0 # 0: nothing change, 1 add or modified, -1 delete
     rule = @_tempProfileRules[domain]
-    if toggle
-      if rule and toggle is 1
-        return Promise.resolve()
-      if not rule and toggle is -1
-        return Promise.resolve()
+    # A rule whose profile was deleted is left behind by _pruneTempRules;
+    # treat it as absent instead of inserting a second rule object.
+    if rule and not rule.profileName
+      delete @_tempProfileRules[domain]
+      rule = null
+    # Explicit intents do not depend on the caller's view of the current rule.
+    # The popup sends 2/-1: its pageInfo copy can lag behind the background,
+    # and a toggle would then delete the very rule the user meant to set.
+    if toggle is -1 and not rule
+      return Promise.resolve()
+    if toggle is 1 and rule
+      return Promise.resolve()
+    if toggle is 2 and rule?.profileName == profileName
+      return Promise.resolve()
 
-    if rule and rule.profileName
+    if toggle is -1
+      @_tempProfile.rules.splice(@_tempProfile.rules.indexOf(rule), 1)
+      delete @_tempProfileRules[domain]
+      changed = -1
+    else if rule and rule.profileName
       if rule.profileName != profileName
         key = OmegaPac.Profiles.nameAsKey(rule.profileName)
         list = @_tempProfileRulesByProfile[key]
@@ -798,14 +812,18 @@ class Options
       @_tempProfileRules[domain] = rule
       changed = 1
 
-    key = OmegaPac.Profiles.nameAsKey(profileName)
+    # A forced delete can carry a profileName that no longer matches the rule,
+    # so bookkeeping uses the profile the rule really pointed at.
+    bookkeepingName = if changed == -1 then rule.profileName else profileName
+    key = OmegaPac.Profiles.nameAsKey(bookkeepingName)
     rulesByProfile = @_tempProfileRulesByProfile[key]
     if not rulesByProfile?
       rulesByProfile = @_tempProfileRulesByProfile[key] = []
     if changed == 1
       rulesByProfile.push(rule)
     else
-      rulesByProfile.splice(rulesByProfile.indexOf(rule), 1)
+      index = rulesByProfile.indexOf(rule)
+      rulesByProfile.splice(index, 1) if index >= 0
 
     if changed
       OmegaPac.Profiles.updateRevision(@_tempProfile)
@@ -1053,8 +1071,18 @@ class Options
   # and the matching details
   ###
   matchProfile: (request) ->
+    Promise.resolve(@matchProfileSync(request))
+
+  ###*
+  # Synchronous counterpart of matchProfile, for callers that need to compare
+  # the effective route before and after a change in the same tick.
+  # @param {{}} request The request to test
+  # @returns {{profile: {}, results: {}[]}} The last matched profile and the
+  # matching details
+  ###
+  matchProfileSync: (request) ->
     if not @_currentProfileName
-      return Promise.resolve({profile: @_externalProfile, results: []})
+      return {profile: @_externalProfile, results: []}
     results = []
     profile =
       if @_tempProfileActive
@@ -1073,7 +1101,7 @@ class Options
       else
         break
       profile = OmegaPac.Profiles.byKey(next, @_options)
-    Promise.resolve(profile: lastProfile, results: results)
+    {profile: lastProfile, results: results}
 
   ###*
   # Notify Options that the proxy settings are set externally.

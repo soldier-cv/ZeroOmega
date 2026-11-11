@@ -1,9 +1,14 @@
 function callBackgroundNoReply(method, args, cb) {
+  // The popup already knows the page it is about; carry its URL so the
+  // background can compare the route before/after without an extra async
+  // tab query ahead of the change (which would reorder messages).
+  var info = globalThis.OmegaPopup && globalThis.OmegaPopup.pageInfo;
   chrome.runtime.sendMessage({
     method: method,
     args: args,
     noReply: true,
     refreshActivePage: true,
+    activeTabUrl: info ? info.url : null,
   });
   if (cb) return cb();
 }

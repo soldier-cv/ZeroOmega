@@ -82,6 +82,9 @@ OmegaTargetPopup = {
   getTempRules: function(cb){
     callBackground('getTempRules', [], cb);
   },
+  pullTempRules: function(cb) {
+    callBackground('pullTempRulesIfStale', [], cb);
+  },
   addTempRule: function(domain, profileName, toggle, cb) {
     if (typeof toggle == 'function') {
       cb = toggle;

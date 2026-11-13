@@ -432,6 +432,31 @@
 - **验证（2026-11-12）**：本地 HTTP 预览页直接引用该文件，逐档尺寸在白色 / `#1b1c1f` 深色背景下渲染正常，`<link rel="icon" type="image/svg+xml">` 亦能取到；文件 654 字节、纯静态，不影响构建。
 - **注意**：该文件只服务项目列表 / 文档场景，**不参与**扩展打包（`omega-build` 只拷各模块产出）；扩展图标仍在 `omega-web/img/icons/`，改动那边的图标不要忘了这里。
 
+### R22. 页面规则多设备感知提速（条件轮询 + 事件补拉） — 状态：**构建与逻辑校验通过，待实机确认**（2026-11-13）
+
+- **背景**：R16 之后，A 设备改动约 1 秒上传，但 B 设备最坏要等 **10 分钟**（`omega.tempRulesPull` 闹钟）才拉到。华总问「有没有推送还是只能轮询」，并明确**只用 WebDAV、服务端是 dufs**；顺带要求对比 `yetone/magpie` 与 FlClash 的做法。
+- **调研结论（三者都没有推送）**：
+  - `dufs` 是「静态文件服务器 + WebDAV 方法」，支持强 ETag（`etag_from_metadata`，基于纳秒 mtime / size / inode，不读内容）、`If-None-Match` → **304**（GET/HEAD）、`If-Modified-Since` → 304、`If-Match` → 412、`PROPFIND` 的 `D:getetag`；**不支持** WebDAV `sync-collection`(RFC 6578)、SSE、WebSocket、长轮询或任何变更通知。
+  - `yetone/magpie`：也是轮询——默认 **3 分钟**（`davsync.go` 的 `Every`）、可配更长 / 仅手动、保存设置立即同步；关键是 GET 带 `If-None-Match`，304 时零传输（`errNotModified`），PUT 带 `If-Match`，412 重试合并；还有 `NoCondRead` 降级（某些服务器对条件 GET 回 500）、`Accept-Encoding: identity` 防 ETag 被压成弱 ETag、文件锁与失败退避。
+  - `chen08209/FlClash`：`DAVTransport` 只有 OPTIONS/MKCOL/PUT/GET（Basic/Digest），`DAVClient` 只有 ping/upload/download，UI 只有「备份 / 恢复」两个按钮；**没有定时、没有 ETag、没有自动拉取、没有合并**，是整包覆盖的纯手动备份，比本 fork 现状还弱。issue #2479 提的「按时间戳命名 + 历史列表」仍是手动选。
+- **已确认决策（D25）**：见决策日志。要点：不引入 dufs 之外的组件，把「缩短周期」与「让每轮几乎免费」结合，再叠加事件触发补拉。
+- **实现（2026-11-13）**：
+  - `omega-target-chromium-extension/src/module/options_backup.coffee`：
+    - `TEMP_RULES_PULL_MINUTES` 10 → **0.5**（Chrome 120+ / Firefox 下限 30 秒）；闹钟改名 `omega.tempRulesPullV2` 并清掉旧的 `omega.tempRulesPull`——同名 `create` 不会改周期，否则升级后仍是 10 分钟；
+    - `WebDavClient.getTempRules(etag)` 带 `If-None-Match`（弱 ETag 不发），处理 **304 → `unchanged: true`**；
+    - `_syncTempRulesOnce` 在 304 时用 `state.tempRulesBase` 作为远端值（每次成功同步后 base 恒等于远端），200 时把响应 ETag 存内存 `@_tempRulesEtag`；base 缺失时清 ETag 重读一次；PUT 仍带 `If-Match`（304 时用旧 ETag、200 时用新 ETag，都对应当前文件）；
+    - `syncTempRules(force)`：失败按指数退避（30s→…→5min，成功清零），闹钟与事件补拉尊重退避；本地改动、保存设置、手动同步、启动拉取传 `force=true` 穿透；`pullIfStale()` 在 30 秒内有任何同步就跳过，避免与闹钟撞车。
+  - `src/coffee/background.coffee`：`syncTempRulesNow` 改 force；新增 `options.pullTempRulesIfStale`；`chrome.windows.onFocusChanged` 触发补拉（跳过 `WINDOW_ID_NONE`）。
+  - popup：`src/js/omega_target_popup.js` 新增 `pullTempRules` → 后台 `pullTempRulesIfStale`；`omega-web/src/popup/js/loader.js` 打开时异步补拉（**不阻塞首屏**，等 `om-main/om-state/om-page-info` 就绪后再刷新）；`profiles.js` 暴露 `refreshPageInfo`（复用 `pageInfoToken` 防竞态，只重取 pageInfo 重画页卡片）。
+- **语义不变**：仍只有页面规则自动同步；整体 options 备份仍是「只上传 + 手动恢复」（R7/D9）；路由语义、manifest、i18n、依赖均未改动。
+- **最坏延迟**：30 秒（闹钟；Chrome <120 会被 clamp 到 1 分钟）+ 用户主动触发点（开 popup / 切窗口）。无变化时每轮只有一个空 304，不传 JSON、不写 options。
+- **验证（2026-11-13）**：
+  - `npm run build` 全绿（coffeelint 28 files lint free；jade 仅 2 条既有 warning）；构建产物含 `If-None-Match` / `omega.tempRulesPullV2` / `pullIfStale`，popup 的 `loader.js` / `profiles.js` 与源逐字节一致。
+  - 单元测试：omega-target **16 passing / 0 failing**；omega-pac **143 passing / 1 failing**（既有 SOCKS5，与本次无关）。
+  - 逻辑校验台（临时目录，不入库：直接编译 `options_backup.coffee`，桩模拟 dufs 的 ETag / 304 / 412）**10 条断言全过**：首次同步上传、200 记 ETag 与 base、304 零传输、远端变更合并下来、本地改动在 304 下仍能推送（If-Match）、412 冲突重拉合并、失败退避与 force 穿透、事件补拉节流、弱 ETag 不发条件头、旧闹钟迁移到 30 秒。
+- **待实机**：重载扩展后确认 30 秒闹钟建立、popup 打开 / 切窗口的补拉、设置页「上次同步」时间刷新，以及真实 dufs 返回 304（可先用 `curl -H "If-None-Match: <ETag>"` 验证服务端）。
+- **相关代码**：`omega-target-chromium-extension/src/module/options_backup.coffee`（`getTempRules` / `syncTempRules` / `pullIfStale` / `_syncTempRulesOnce` / `watch`）、`src/coffee/background.coffee`、`src/js/omega_target_popup.js`、`omega-web/src/popup/js/loader.js` 与 `profiles.js`。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -477,7 +502,7 @@ cd omega-target && npm test
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup「本页」、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
-- **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时与每 10 分钟（`omega.tempRulesPull` 闹钟）各拉一次。
+- **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时、**每 30 秒**（`omega.tempRulesPullV2` 闹钟，带 `If-None-Match`，304 时零传输）、popup 打开与窗口聚焦时各拉一次（后两者 30 秒内已同步则跳过）。失败按指数退避（30s→5min），本地改动 / 保存设置 / 手动同步不受退避限制。详见 R22 / D25。
 - **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊 + 副标题写明实际路由，下面**同一套**情景模式列表）。**模式即路由**：切到「本页」会为当前完整 hostname 写入（或恢复上次选择的）一条页面规则，默认取当前全局情景模式；切到「全局」删除该 host 的规则。**有规则 = 本页，无规则 = 全局**，不再单独存模式偏好；上次在「本页」选的 profile 按 host 记在 `localStorage`（`omega.popup.pageProfile:<host>`），切回全局只删规则、不清记忆。列表行点击只改写这一条 host 规则、**只应用不删除**；没有作用域选择，也没有「撤销本页规则 / 撤销主域规则」按钮。更宽的旧整域规则（popup 已不再创建）在提示行报告，并提供唯一的显式「撤销」——删它会影响同域其它站点。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **更新检查**：background 的 `module/update_check.coffee` 读 R15 端点 `version.json`，打开浏览器时（距上次 >30 分钟）与每 6 小时（`omega.updateCheck` 闹钟）各查一次；发现新版本弹一次系统通知（每个版本一次），点击打开设置页「关于」。「关于」页的「更新」分组显示状态、命令原文与「复制更新命令 / 重载扩展 / 立即检查」。未打包扩展不能自更新，所以安装仍是 PowerShell 命令 + `chrome.runtime.reload()`。popup 里不再有更新入口。
 - **版本查询接口**：`/res/zeroomega/version.json`（机器读，字段与顺序见 R15）+ `version.txt`（一行 `curl` 即得 `vX.Y.Z`）。CI publish 在刷新分发包清单后调用 `tools/ci/write_version_endpoint.py` 原子落盘，版本号取自分发 zip 内的 `manifest.json`；分发包卡片与 `/res/manifest.json` 总表会自动带一条 `version.json` link。
@@ -511,3 +536,4 @@ cd omega-target && npm test
 | D22 | 页面规则收敛为**一址一规则**：只按当前完整 hostname；**模式即路由**（切到本页=写入/恢复该 host 的规则，默认当前全局 profile；切到全局=删除该 host 规则）；去掉作用域选择与撤销按钮；上次选择按 host 记在 `localStorage`；更宽的旧整域规则只在提示行报告 + 显式撤销 | 保持 R10/R13 的「作用域 + 视图偏好 + 显式撤销」；或切到全局时连带删主域规则 | 华总要的是「一个站点要么全局、要么本页，且切换要记住；本页永远有勾选」；一旦模式=视图、规则独立存在，就必须有撤销按钮，且“全局”视图下规则仍在生效，显示与实际路由脱节。整域规则是共享的，删它会连累兄弟子域，所以只保留提示行里的显式撤销，不并入 popup 的日常操作 |
 | D23 | **只有活动页的实际代理结果变化才刷新页面**（消息处理前同步算 `before`、方法完成后算 `after`，相同则跳过刷新；任一侧未知或 URL 与活动 tab 不一致时保守刷新）；popup 写规则改用**显式意图**（`addTempRule` 的 `2` = force set、`-1` = force delete），不再用 toggle 语义 + 可能过期的本地 `pageInfo` 判断 | 维持「每次改动都 `tabs.reload`」；只在 popup 侧补「已生效就跳过」判断；改用 profile 名称字符串比较决定是否刷新 | 同一情景模式在全局/本页间切换时 PAC 结果不变，刷新只会丢表单/滚动/播放状态。toggle 语义把「设置 FIDDLER」变成「删除 FIDDLER 规则」：popup 缓存滞后于后台时，界面显示已勾选而实际请求走全局，正是华总截图里「切了没效果」的成因。显式意图让写入幂等、与视图状态无关；比较「实际路由」而不是「配置文本」，才不会把等价改写误判成变化 |
 | D24 | 仓库根放一份 `favicon.svg`，用**品牌蓝圆角方块 + 白色 omega**（复用扩展图标的 path） | 直接拷 `omega-128.svg`（裸标透明底）/ 只放 PNG / 不提供 | OpenChamber 等项目列表只认 `favicon.*`，需要一个能被自动发现的图标；裸标在浅色下基本只剩一圈细线、深色下蓝线偏淡，反色瓷砖在浅 / 深界面下外观一致且 16px 下最稳；一份 SVG 覆盖所有尺寸，不必再维护多份位图 |
+| D25 | 多设备感知 = **30 秒条件轮询 + 事件补拉**，不引入推送 | 维持 10 分钟全量轮询 / 引入 WebSocket 网关、Web Push、Native Messaging 或中间信令服务 / 照抄 FlClash 的手动备份 | dufs 只是带 WebDAV 方法的静态服务器，没有 `sync-collection`、SSE、长轮询，纯 WebDAV 下不存在推送通道；magpie 证明「缩短周期 + 条件请求让每轮几乎免费」即可：dufs 的 ETag 来自文件元数据，`If-None-Match` 命中时只回 304 空 body，30 秒一轮也不耗流量。再叠加 popup 打开 / 窗口聚焦补拉，把用户视角的延迟压到 0。FlClash 是纯手动整包备份（无定时、无 ETag、无合并），无可借鉴处。不新增依赖、不动 manifest / i18n / 路由语义；旧闹钟同名重建不会改周期，故改名迁移 |

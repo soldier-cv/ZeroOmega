@@ -281,7 +281,14 @@ zeroBackground = (zeroStorage, opts) ->
   options.backupOptionsNow = -> optionsBackup.backupNow()
   options.restoreOptionsFromBackup = -> optionsBackup.restore()
   options.setOptionsBackupConfig = (config) -> optionsBackup.setConfig(config)
-  options.syncTempRulesNow = -> optionsBackup.syncTempRules()
+  options.syncTempRulesNow = -> optionsBackup.syncTempRules(true)
+  options.pullTempRulesIfStale = -> optionsBackup.pullIfStale()
+
+  # Window focus is when a change made on another device is most likely to be
+  # looked at; OptionsBackup throttles this to one pull per alarm period.
+  chrome.windows?.onFocusChanged?.addListener (windowId) ->
+    return if windowId == chrome.windows.WINDOW_ID_NONE
+    options.pullTempRulesIfStale()
 
   updateCheck = new OmegaTargetCurrent.UpdateCheck(state, Log)
   updateCheck.watch()

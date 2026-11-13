@@ -32,6 +32,15 @@ $script('../js/omega_target_popup.js', 'om-target', function() {
       window.OmegaPopup.state = state;
       $script.done('om-state');
     });
+    // Pull page rules as the popup opens without holding up the first render.
+    // The background throttles the request; when it answers, re-read the page
+    // info so a change made on another device shows up in the header. Waiting
+    // for the first render keeps this refresh from racing the initial draw.
+    OmegaTargetPopup.pullTempRules(function() {
+      $script.ready(['om-main', 'om-state', 'om-page-info'], function() {
+        if (OmegaPopup.refreshPageInfo) OmegaPopup.refreshPageInfo();
+      });
+    });
   }
   const permissionValue = {origins: ["<all_urls>"]}
   if (globalThis.browser && browser.proxy && browser.proxy.onRequest){

@@ -41,6 +41,7 @@
   $script.ready(['om-state', 'om-page-info'], updateMenuByStateAndPageInfo);
 
   OmegaPopup.applyPageProfile = applyPageProfile;
+  OmegaPopup.refreshPageInfo = refreshPageInfo;
 
   return;
 

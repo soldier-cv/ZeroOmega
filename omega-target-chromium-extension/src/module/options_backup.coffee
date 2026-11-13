@@ -8,8 +8,11 @@ OPTION_FILE_SUFFIX = '.json'
 # Page rules live in a small file of their own: they change on popup clicks,
 # far more often than options, and must never ride on a full options restore.
 TEMP_RULES_FILENAME = 'zeroomega-temprules.json'
-TEMP_RULES_PULL_ALARM = 'omega.tempRulesPull'
-TEMP_RULES_PULL_MINUTES = 10
+TEMP_RULES_PULL_ALARM = 'omega.tempRulesPullV2'
+LEGACY_TEMP_RULES_PULL_ALARM = 'omega.tempRulesPull'
+TEMP_RULES_PULL_MINUTES = 0.5
+TEMP_RULES_PULL_MIN_MS = TEMP_RULES_PULL_MINUTES * 60 * 1000
+TEMP_RULES_MAX_BACKOFF_MS = 5 * 60 * 1000
 TEMP_RULES_PUSH_DEBOUNCE = 1000
 
 # Debounce (ms) applied to auto backups after options change.
@@ -181,20 +184,29 @@ class WebDavClient
     return result
 
   ###*
-  # @returns {Promise<{rules: Object, updatedAt: number, etag: ?string}>}
-  # An empty set when the file does not exist yet.
+  # @returns {Promise<{rules: ?Object, updatedAt: number, etag: ?string,
+  #                    unchanged: boolean}>}
+  # An empty set when the file does not exist yet. A conditional GET keeps the
+  # periodic poll cheap: dufs answers 304 with no body when nothing changed,
+  # and the caller reuses the copy it last agreed with the server.
   ###
-  getTempRules: ->
-    @_fetch(@baseUri + TEMP_RULES_FILENAME, {cache: 'no-store'}).then((res) ->
+  getTempRules: (etag) ->
+    options = {cache: 'no-store'}
+    if etag and etag.indexOf('W/') != 0
+      options.headers = {'If-None-Match': etag}
+    @_fetch(@baseUri + TEMP_RULES_FILENAME, options).then((res) ->
+      if res.status == 304
+        return {rules: null, updatedAt: 0, etag: etag, unchanged: true}
       if res.status == 404
-        return {rules: {}, updatedAt: 0, etag: null}
+        return {rules: {}, updatedAt: 0, etag: null, unchanged: false}
       if not res.ok
         throw new Error("WebDAV getTempRules failed: " + res.status)
-      etag = res.headers.get('ETag')
+      newEtag = res.headers.get('ETag')
       res.json().then((data) ->
         rules: data?.rules or {}
         updatedAt: data?.updatedAt or 0
-        etag: etag
+        etag: newEtag
+        unchanged: false
       )
     )
 
@@ -274,6 +286,10 @@ class OptionsBackup
     @_tempRulesTimer = null
     @_tempRulesSync = null
     @_tempRulesDirty = false
+    @_tempRulesEtag = null
+    @_lastPullAt = 0
+    @_backoffUntil = 0
+    @_tempRulesFailures = 0
 
   getConfig: ->
     @_state.get({
@@ -303,7 +319,7 @@ class OptionsBackup
     @_state.set(updates).then(=>
       # A newly configured server is pulled right away, so rules set on other
       # devices show up without waiting for the next alarm.
-      @syncTempRules().catch(-> return)
+      @syncTempRules(true).catch(-> return)
     )
 
   ###*
@@ -321,6 +337,9 @@ class OptionsBackup
         @scheduleAutoBackup()
       result
     @options.onTempRulesChanged = => @scheduleTempRulesPush()
+    # The old alarm has a 10-minute period; re-creating it under the same name
+    # would not change that period, so move to a new name and clear the old one.
+    chrome.alarms.clear(LEGACY_TEMP_RULES_PULL_ALARM, -> return)
     # Re-creating an alarm resets its timer, and this runs on every service
     # worker start; only create it when it is missing.
     chrome.alarms.get TEMP_RULES_PULL_ALARM, (alarm) ->
@@ -332,7 +351,7 @@ class OptionsBackup
       @syncTempRules().catch(-> return)
     # Startup pull: whatever other devices changed while this browser was
     # closed is in place before the first page is routed by an old rule.
-    @options.ready.then(=> @syncTempRules()).catch(-> return)
+    @options.ready.then(=> @syncTempRules(true)).catch(-> return)
 
   scheduleAutoBackup: ->
     return if @_backupInProgress or @_restoreInProgress
@@ -424,20 +443,31 @@ class OptionsBackup
     clearTimeout(@_tempRulesTimer) if @_tempRulesTimer?
     @_tempRulesTimer = setTimeout(=>
       @_tempRulesTimer = null
-      @syncTempRules().catch((e) ->
+      @syncTempRules(true).catch((e) ->
         console.error('ZeroOmega: page rule sync failed:', e)
       )
     , TEMP_RULES_PUSH_DEBOUNCE)
 
-  syncTempRules: ->
+  syncTempRules: (force = false) ->
+    # Back off periodic polls after a failure; a local edit, a settings save or
+    # a manual sync still goes through, so a user action is never held up.
+    return Promise.resolve() if not force and Date.now() < @_backoffUntil
+    @_lastPullAt = Date.now()
     # One sync at a time; a change made during a sync triggers another one.
     if @_tempRulesSync
       return @_tempRulesSync.then(=>
-        @syncTempRules() if @_tempRulesDirty
+        @syncTempRules(force) if @_tempRulesDirty
       )
     @_tempRulesSync = @_syncTempRulesOnce(3).finally(=>
       @_tempRulesSync = null
     )
+
+  # Popup opens and window focus must not duplicate the alarm: skip when any
+  # sync already ran within one period.
+  pullIfStale: ->
+    recent = Date.now() - @_lastPullAt < TEMP_RULES_PULL_MIN_MS
+    return Promise.resolve() if recent
+    @syncTempRules().catch(-> return)
 
   _syncTempRulesOnce: (attemptsLeft) ->
     client = null
@@ -447,7 +477,7 @@ class OptionsBackup
       client.init(config)
       @options.ready.then(=>
         Promise.join(
-          client.getTempRules()
+          client.getTempRules(@_tempRulesEtag)
           @_state.get({tempRulesBase: null})
           (remote, {tempRulesBase}) -> {remote, base: tempRulesBase}
         )
@@ -457,7 +487,17 @@ class OptionsBackup
       @_tempRulesDirty = false
       local = @options.exportTempRules()
       base = ctx.base
-      remote = ctx.remote.rules
+      if ctx.remote.unchanged
+        # A 304 says the server still holds the version we last read, which is
+        # tempRulesBase (kept in step on every successful sync). With no base
+        # the ETag cannot be trusted: drop it and read the file again.
+        if not base
+          @_tempRulesEtag = null
+          return @_syncTempRulesOnce(attemptsLeft)
+        remote = base
+      else
+        remote = ctx.remote.rules
+        @_tempRulesEtag = ctx.remote.etag
       merged = mergeTempRules(base, local, remote)
       tasks = []
       unless sameRules(merged, local)
@@ -478,10 +518,17 @@ class OptionsBackup
       )
     ).catch((e) =>
       @_tempRulesDirty = true
+      @_tempRulesFailures += 1
+      @_backoffUntil = Date.now() + Math.min(
+        TEMP_RULES_PULL_MIN_MS * Math.pow(2, @_tempRulesFailures),
+        TEMP_RULES_MAX_BACKOFF_MS)
       @_setTempRulesResult('fail: ' + (e.message or e)).then(-> throw e)
     )
 
   _setTempRulesResult: (state) ->
+    if state == 'success'
+      @_tempRulesFailures = 0
+      @_backoffUntil = 0
     @_state.set({
       'optionsBackup.lastTempRulesSync': Date.now()
       'optionsBackup.lastTempRulesSyncState': state

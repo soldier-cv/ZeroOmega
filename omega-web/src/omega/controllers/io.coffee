@@ -1,6 +1,8 @@
 angular.module('omega').controller 'IoCtrl', (
-  $scope, $rootScope, omegaTarget, downloadFile, $window
+  $scope, $rootScope, omegaTarget, downloadFile, $window, $filter
 ) ->
+
+  tr = $filter('tr')
 
   $scope.backupConfig =
     uri: ''
@@ -30,6 +32,7 @@ angular.module('omega').controller 'IoCtrl', (
     $scope.lastBackupState = lastBackupState or ''
     $scope.lastTempRulesSync = lastTempRulesSync or null
     $scope.lastTempRulesSyncState = lastTempRulesSyncState or ''
+    loadBackupVersions() if $scope.backupConfig.uri
 
   $scope.exportOptions = ->
     $rootScope.applyOptionsConfirm().then ->
@@ -116,13 +119,82 @@ angular.module('omega').controller 'IoCtrl', (
         i18n: 'options_backupSuccess'
         message: 'Backup completed.'
       )
+      # The new backup is now the latest, so show it as the one to restore.
+      loadBackupVersions(true)
     ).catch(showBackupError).finally ->
       $scope.backingUp = false
+
+  # The server keeps the last few option files; listing them lets a restore
+  # pick an older copy when the newest one turned out to be a wrong (e.g.
+  # default) configuration.
+  #
+  # The select is bound to an index, not to a commit id: Angular renders the
+  # model against the option list it already has, and a string that only
+  # exists in the list just assigned is dropped to null when both change in
+  # one digest. An index in range is valid in either list.
+  $scope.backupVersions = []
+  $scope.backupVersionIndex = null
+  $scope.backupVersion = null
+  $scope.backupVersionsFailed = false
+
+  versionLabel = (version) ->
+    label = if version.lastModified
+      $filter('date')(version.lastModified, 'medium')
+    else
+      version.commitId.substring(0, 8)
+    label += ' · ' + tr('options_backupVersionLatest') if version.latest
+    label
+
+  latestIndex = (versions) ->
+    for version, index in versions
+      return index if version.latest
+    0
+
+  selectVersion = (index) ->
+    $scope.backupVersionIndex = index
+    $scope.backupVersion = $scope.backupVersions[index].commitId
+
+  $scope.versionPicked = ->
+    version = $scope.backupVersions[$scope.backupVersionIndex]
+    $scope.backupVersion = version.commitId if version
+
+  loadBackupVersions = (preferLatest) ->
+    $scope.loadingBackupVersions = true
+    $scope.backupVersionsFailed = false
+    omegaTarget.listOptionsBackups().then((versions) ->
+      $scope.backupVersions = versions.map((version, index) ->
+        index: index
+        commitId: version.commitId
+        label: versionLabel(version)
+      )
+      if $scope.backupVersions.length
+        # Keep the choice while the server still has that copy; a pruned one
+        # falls back to the newest.
+        index = null
+        unless preferLatest
+          for version, i in $scope.backupVersions
+            index = i if version.commitId == $scope.backupVersion
+        selectVersion(index ? latestIndex(versions))
+      else
+        $scope.backupVersion = null
+        $scope.backupVersionIndex = null
+    ).catch(->
+      # Restoring still works without the list (the commit file names the
+      # latest backup), so a server without PROPFIND only loses the picker.
+      $scope.backupVersions = []
+      $scope.backupVersion = null
+      $scope.backupVersionIndex = null
+      $scope.backupVersionsFailed = true
+    ).finally(->
+      $scope.loadingBackupVersions = false
+    )
+
+  $scope.loadBackupVersions = -> loadBackupVersions()
 
   $scope.restoreFromBackup = ->
     $scope.restoringBackup = true
     saveBackupConfig().then(->
-      omegaTarget.restoreOptionsFromBackup()
+      omegaTarget.restoreOptionsFromBackup($scope.backupVersion or undefined)
     ).then(->
       # 恢复是 background 侧整体替换 options（options.reset），页面持有的副本
       # 不会收到变更通知，不重载会让人以为「提示成功但没生效」。直接刷新页面，

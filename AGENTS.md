@@ -178,7 +178,7 @@
 ### R7. WebDAV 自动备份 / 恢复（替代 Gist 同步与在线恢复） — 状态：**代码完成，构建与测试通过，待实机确认**（2026-10-16）
 
 - **背景**：替代「Gist 同步」与「在线恢复」（依赖 GitHub / 上游服务，不稳定且不再需要）。华总自用 WebDAV（群晖 / Nextcloud 等）作为单一可信备份点。
-- **已确认决策（D9）**：远端**单份最新**（上传新文件后删除旧文件）+「自动备份」开关（默认关）+ 手动「立即备份 / 从备份恢复」；备份内容 = 完整 options JSON（沿用 `.bak` 格式；临时规则在 `chrome.storage.session`，天然不在备份内）；WebDAV 布局复用既有客户端约定（`zeroomega/` 子目录 + `zeroomega-commit.txt` + `zeroomega-<20hex>.json`）；凭据仅存本地（`omega.local.*`）。
+- **已确认决策（D9）**：远端**单份最新**（上传新文件后删除旧文件；**保留策略已由 R23 / D26 改为保留最近 3 份**）+「自动备份」开关（默认关）+ 手动「立即备份 / 从备份恢复」；备份内容 = 完整 options JSON（沿用 `.bak` 格式；临时规则在 `chrome.storage.session`，天然不在备份内）；WebDAV 布局复用既有客户端约定（`zeroomega/` 子目录 + `zeroomega-commit.txt` + `zeroomega-<20hex>.json`）；凭据仅存本地（`omega.local.*`）。
 - **实现（2026-10-16）**：
   - 新增 `module/options_backup.coffee`：自包含 `WebDavClient`（Basic / Bearer 认证、MKCOL 建目录、PUT 上传、GET 下载、DELETE 旧文件；移植自旧 `sync_impl_webdav.coffee`，`token` → `password`）+ `OptionsBackup` 管理器（`getConfig` / `setConfig` / `watch` / `backupNow` / `restore`）。
   - 自动备份触发：包装实例方法 `options._setOptions`（options 变更的唯一持久化入口），条件 `changes and (args?.persist ? true)`，2s 防抖；恢复后 15s 内抑制自动备份（避免 reset 触发的回推）；`_backupInProgress` / `_restoreInProgress` 防重入。
@@ -457,6 +457,38 @@
 - **待实机**：重载扩展后确认 30 秒闹钟建立、popup 打开 / 切窗口的补拉、设置页「上次同步」时间刷新，以及真实 dufs 返回 304（可先用 `curl -H "If-None-Match: <ETag>"` 验证服务端）。
 - **相关代码**：`omega-target-chromium-extension/src/module/options_backup.coffee`（`getTempRules` / `syncTempRules` / `pullIfStale` / `_syncTempRulesOnce` / `watch`）、`src/coffee/background.coffee`、`src/js/omega_target_popup.js`、`omega-web/src/popup/js/loader.js` 与 `profiles.js`。
 
+### R23. WebDAV 备份保留最近 3 个版本（含一次「备份变默认配置」事故复盘） — 状态：**构建通过，真实 Chromium 端到端校验通过，待实机确认**（2026-11-15）
+
+- **事故现象**：华总从 WebDAV 恢复后发现内容缺失（只有 `+auto switch` / `+proxy` 两个情景模式、设置全默认）。
+- **核对结论（先分清是谁的错）**：
+  - **服务器上的备份本身就是坏的那份**：live dufs（`http://100.64.0.88:13306`，`zeroomega/zeroomega-<id>.json`，1727 B，mtime `2026-11-15 03:25:27 GMT` = 11:25 +08）的内容与全新安装默认 options 逐项一致（只多一个 `-monitorWebRequests: true`）。
+  - **恢复是忠实的**：用真实构建产物把该文件恢复到干净设备，结果与服务器内容一致（仅 `revision` 不同）；PROPFIND 显示目录里只剩这一份选项文件——上一份好备份已被旧逻辑的「单槽」DELETE 掉，所以没有退路。
+  - **来源**：Edge（`flppdejfgfipjjmgmdbfdfihighnjegl`）本地仍持有好配置（FIDDLER / VPN / auto switch / direct / system，`lastBackup` 有值但 `lastBackupState = fail: Failed to fetch`、`lastBackupCommit` 从未写入 → Edge 从未成功上传过）；Chrome / Firefox 侧无任何 WebDAV 配置 → 覆盖来自另一台机器 / 另一份安装。
+  - 另有已复现的次生风险：恢复到「缺少页面规则所引用 profile」的 options 时，`_pruneTempRules` 会静默删掉本机页面规则并把删除同步到 WebDAV（本次未改，见 D26 的「未做」）。
+- **已确认决策（D26）**：服务器改为**保留最近 3 个选项文件**（`BACKUP_VERSIONS = 3`），上传成功后按 `getlastmodified` 从新到旧裁剪；设置页新增「备份版本」下拉 + 刷新按钮，恢复时用选中的那一份（不选 = commit 文件指向的最新）。
+- **实现（2026-11-15）**：
+  - `omega-target-chromium-extension/src/module/options_backup.coffee`：
+    - 新增 `davElements(tag, xml)`（DAV 响应里取同名元素的内部文本，命名空间前缀可选——dufs 用 `D:`，别的服务器用默认命名空间）；
+    - `WebDavClient.pushOptions(options)` 去掉 `previousCommitId` 参数，上传 + 写 commit 后调 `_pruneOptions(newCommitId)`；
+    - 新增 `listOptions()`（`PROPFIND Depth: 1`，解析 `href` / `getlastmodified`，按 mtime 新到旧排序；**没有可用 mtime 的文件不进排序、也永不删除**）与 `_pruneOptions(newCommitId)`（保留新文件 + 最近 `BACKUP_VERSIONS - 1` 个；DELETE 失败忽略）；
+    - 列目录失败（服务器不支持 PROPFIND）时**跳过裁剪**：只多留文件，绝不删错；
+    - 新增 `OptionsBackup.listBackups()`（返回 `{commitId, lastModified, latest}`，`latest` = commit 文件指向的那份）；`restore(commitId)` 支持指定版本，id 先过 `/^[0-9a-zA-Z]+$/` 白名单，不传则仍读 commit 文件。
+  - `src/coffee/background.coffee`：`options.listOptionsBackups`、`options.restoreOptionsFromBackup(commitId)`。
+  - `src/coffee/omega_target_web.coffee`：`listOptionsBackups`、`restoreOptionsFromBackup(commitId)` 透传。
+  - `omega-web/src/partials/io.jade` + `controllers/io.coffee`：备份设置区新增「备份版本」下拉（日期 + 「· 最新」）与刷新按钮；`backupNow` 成功后刷新并把选择切到新的最新；恢复用所选版本；无 PROPFIND 时下拉给出「读取备份列表失败，恢复将使用最新的一份」，恢复本身仍可用。
+  - i18n（`en_US` + `zh_CN`）：新增 `options_backupVersion` / `options_backupVersionLatest` / `options_backupVersionHelp` / `options_backupVersionRefresh` / `options_backupVersionFailed` / `options_backupVersionNone`；顺手修正 `options_backupSyncTempRulesHelp` 里过期的「每 10 分钟」→「每 30 秒」（R22 已改代码只改了代码）。
+- **实现要点（Angular，勿回退）**：
+  - 下拉**绑下标**（`backupVersionIndex`）而不是 commitId：`ng-options` 在「上一次的选项表」上渲染模型，若列表与模型在同一个 digest 里同时变化、且旧选中值已不在新表里，模型会被 Angular 丢成 `null`（实测复现；`$evalAsync` / `$applyAsync` 补救无效）。
+  - 版本行用 **`ng-show` 而不是 `ng-if`**：`ng-if` 会新建子作用域，`ng-model` 写到子作用域，而 `versionPicked()` / `loadBackupVersions()` 读的是 controller 自己的 `$scope`，两边会不一致（实测踩到）。
+- **验证（2026-11-15）**：
+  - `npm run build` 全绿（coffeelint 全过；jade 仅 2 条既有 warning）；`build/js/omega.js` 无调试残留，`build/partials/io.html` 与 `_locales` 均为新内容。
+  - 单元测试：omega-target **16 passing / 0 failing**。
+  - 真实 Chromium + 构建产物 + 内存 WebDAV（新写 `dav2.js`，带 PROPFIND / 强 ETag / 每次写入递增 mtime；harness 在临时目录，不入库）：
+    - `history.js` **24 条断言全过**：连续 4 次备份只留 3 个文件、最旧的被裁剪、commit 指向最新、列表 3 条且新到旧、只有一条标 `latest`、恢复第 2 新的版本内容正确、不指定版本恢复最新、非法 id 被拒、**无 PROPFIND 的服务器不删任何文件**且列表报错但恢复仍可用。
+    - `ui_check.js` **11 条断言全过**：设置页下拉列出 3 个版本并默认选中最新、只有最新带「· 最新」、改选旧版本后模型/下拉一致、刷新保留选择、页面上点「立即备份」后裁剪到 3 并把选择切到新的最新、无未知选项残留；截图逐项核对（下拉 + 刷新按钮 + 帮助文案）。
+- **待实机**：**先用 Edge 打开设置页 → WebDAV → 「立即备份」把好配置推上去**（当前服务器上那份是坏的）；重载扩展后确认下拉 / 恢复链路（`_locales` 需重载才生效）。
+- **已知 / 边界**：仍没有服务端锁——两台设备几乎同时上传时，两边都按各自看到的列表裁剪，极端情况下可能多删一份（保留 3 份的窗口内影响很小）；「恢复到缺少 profile 的 options 会清掉引用它的页面规则」本次未处理。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -537,3 +569,4 @@ cd omega-target && npm test
 | D23 | **只有活动页的实际代理结果变化才刷新页面**（消息处理前同步算 `before`、方法完成后算 `after`，相同则跳过刷新；任一侧未知或 URL 与活动 tab 不一致时保守刷新）；popup 写规则改用**显式意图**（`addTempRule` 的 `2` = force set、`-1` = force delete），不再用 toggle 语义 + 可能过期的本地 `pageInfo` 判断 | 维持「每次改动都 `tabs.reload`」；只在 popup 侧补「已生效就跳过」判断；改用 profile 名称字符串比较决定是否刷新 | 同一情景模式在全局/本页间切换时 PAC 结果不变，刷新只会丢表单/滚动/播放状态。toggle 语义把「设置 FIDDLER」变成「删除 FIDDLER 规则」：popup 缓存滞后于后台时，界面显示已勾选而实际请求走全局，正是华总截图里「切了没效果」的成因。显式意图让写入幂等、与视图状态无关；比较「实际路由」而不是「配置文本」，才不会把等价改写误判成变化 |
 | D24 | 仓库根放一份 `favicon.svg`，用**品牌蓝圆角方块 + 白色 omega**（复用扩展图标的 path） | 直接拷 `omega-128.svg`（裸标透明底）/ 只放 PNG / 不提供 | OpenChamber 等项目列表只认 `favicon.*`，需要一个能被自动发现的图标；裸标在浅色下基本只剩一圈细线、深色下蓝线偏淡，反色瓷砖在浅 / 深界面下外观一致且 16px 下最稳；一份 SVG 覆盖所有尺寸，不必再维护多份位图 |
 | D25 | 多设备感知 = **30 秒条件轮询 + 事件补拉**，不引入推送 | 维持 10 分钟全量轮询 / 引入 WebSocket 网关、Web Push、Native Messaging 或中间信令服务 / 照抄 FlClash 的手动备份 | dufs 只是带 WebDAV 方法的静态服务器，没有 `sync-collection`、SSE、长轮询，纯 WebDAV 下不存在推送通道；magpie 证明「缩短周期 + 条件请求让每轮几乎免费」即可：dufs 的 ETag 来自文件元数据，`If-None-Match` 命中时只回 304 空 body，30 秒一轮也不耗流量。再叠加 popup 打开 / 窗口聚焦补拉，把用户视角的延迟压到 0。FlClash 是纯手动整包备份（无定时、无 ETag、无合并），无可借鉴处。不新增依赖、不动 manifest / i18n / 路由语义；旧闹钟同名重建不会改周期，故改名迁移 |
+| D26 | WebDAV 备份**保留最近 3 个选项文件**（`BACKUP_VERSIONS = 3`），上传成功后按 `getlastmodified` 从新到旧裁剪；**没有可用 mtime 的文件永不删除**、**列目录失败就整轮跳过裁剪**；设置页给「备份版本」下拉（默认最新），恢复可用任一份，id 走白名单校验。取代 D9 的「单份最新」 | 继续单槽（上传后删旧文件）；保留全部历史靠人工清理；把「覆盖保护」做成写入前确认 | 事故实证：某台默认配置的设备上传一次就把唯一的好备份 DELETE 掉，恢复端忠实照搬，于是「恢复出默认配置」——问题在上传侧的单槽策略，不在恢复。3 份足以覆盖「刚发现坏了」的场景，又不至于让目录无限膨胀；用 mtime 排序不依赖设备时钟；宁可多留文件也不删错，因为 `getlastmodified` 是唯一的排序依据。下拉默认最新，是因为日常操作仍是「恢复最近一次」，看历史是偶发需求。本次**未做**：服务端锁 / 覆盖保护 / 「恢复到缺少 profile 的 options 会清掉引用它的页面规则」 |

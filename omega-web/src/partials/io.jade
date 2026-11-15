@@ -57,6 +57,23 @@ section.settings-group
           ng-model='backupConfig.syncTempRules' ng-change='backupAutoChanged()')
         span {{'options_backupSyncTempRules' | tr}}
       span.help-inline {{'options_backupSyncTempRulesHelp' | tr}}
+  div.form-group(ng-show='backupConfig.uri')
+    label {{'options_backupVersion' | tr}}
+    .input-group.width-limit(ng-show='backupVersions.length')
+      select.form-control(ng-model='backupVersionIndex'
+        ng-change='versionPicked()'
+        ng-options='v.index as v.label for v in backupVersions')
+      span.input-group-btn
+        button.btn.btn-default(type='button' ng-click='loadBackupVersions()'
+          ladda='loadingBackupVersions' data-spinner-color="#000000"
+          title="{{'options_backupVersionRefresh' | tr}}")
+          span.glyphicon.glyphicon-refresh
+    span.help-inline(ng-show='backupVersions.length')
+      | {{'options_backupVersionHelp' | tr}}
+    span.help-inline.text-danger(ng-show='backupVersionsFailed')
+      | {{'options_backupVersionFailed' | tr}}
+    span.help-inline(ng-show='!backupVersions.length && !backupVersionsFailed && !loadingBackupVersions')
+      | {{'options_backupVersionNone' | tr}}
   p
     button.btn.btn-default(ng-click='saveBackupConfig()'
       ladda='savingBackupConfig' data-spinner-color="#000000")

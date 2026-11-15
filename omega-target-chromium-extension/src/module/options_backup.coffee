@@ -15,12 +15,30 @@ TEMP_RULES_PULL_MIN_MS = TEMP_RULES_PULL_MINUTES * 60 * 1000
 TEMP_RULES_MAX_BACKOFF_MS = 5 * 60 * 1000
 TEMP_RULES_PUSH_DEBOUNCE = 1000
 
+# How many option files to keep on the server. A backup is a whole option set,
+# and any device can upload its own; keeping the previous copies is the way
+# back when the newest one turns out to be a wrong or default configuration.
+BACKUP_VERSIONS = 3
+
 # Debounce (ms) applied to auto backups after options change.
 AUTO_BACKUP_DEBOUNCE = 2000
 # Time (ms) during which auto backups are suppressed after a restore, so that
 # the options re-initialization triggered by the restore does not immediately
 # push a fresh backup back to the server.
 RESTORE_SUPPRESS_TIME = 15000
+
+# Inner content of every <tag> element in a DAV response body. Namespace
+# prefixes vary between servers (dufs sends D:, others use a default
+# namespace), so the prefix is optional in the match.
+davElements = (tag, xml) ->
+  regex = new RegExp(
+    "<(?:[\\w.-]+:)?#{tag}[^>]*>([\\s\\S]*?)</(?:[\\w.-]+:)?#{tag}>"
+    'gi'
+  )
+  elements = []
+  while match = regex.exec(xml)
+    elements.push(match[1])
+  elements
 
 ###*
 # Minimal WebDAV client dedicated to ZeroOmega option backups.
@@ -29,8 +47,9 @@ RESTORE_SUPPRESS_TIME = 15000
 #   <uri>/zeroomega/zeroomega-commit.txt
 #   <uri>/zeroomega/zeroomega-<commitId>.json
 #
-# Only the latest backup is kept: after a successful upload the previous
-# option file is deleted.
+# Every upload is a file of its own and the newest BACKUP_VERSIONS are kept, so
+# that a device with a wrong (e.g. default) configuration cannot wipe out the
+# only good copy the way a single-slot backup did.
 ###
 class WebDavClient
   constructor: ->
@@ -138,7 +157,7 @@ class WebDavClient
       return {options, commitId}
     )
 
-  pushOptions: (options, previousCommitId) ->
+  pushOptions: (options) ->
     newCommitId = @_generateCommitId()
     filename = @_optionFilename(newCommitId)
     jsonContent = JSON.stringify(options, null, 4)
@@ -164,14 +183,62 @@ class WebDavClient
     )
 
     cleanup = updateCommit.then( =>
-      if previousCommitId
-        @_fetch(@baseUri + @_optionFilename(previousCommitId), {
-          method: "DELETE"
-        }).catch(-> return)
+      # The upload already succeeded. A server that cannot list the directory
+      # just keeps the extra files, which is harmless; deleting the wrong one
+      # would not be.
+      @_pruneOptions(newCommitId).catch(-> return)
     )
 
     cleanup.then( ->
       return {commitId: newCommitId}
+    )
+
+  ###*
+  # @returns {Promise<Array<{commitId: string, lastModified: number}>>}
+  # The option files on the server, newest first. A file without a usable
+  # modification time stays out of the ordering (and is never pruned), so a
+  # server that does not report dates cannot make us delete the wrong copy.
+  ###
+  listOptions: ->
+    @_fetch(@baseUri, {method: "PROPFIND", headers: {Depth: "1"}}).then(
+      (res) ->
+        if not res.ok
+          throw new Error("WebDAV listOptions failed: " + res.status)
+        res.text()
+    ).then((body) ->
+      versions = []
+      for block in davElements('response', body)
+        href = davElements('href', block)[0]
+        continue unless href
+        name = decodeURIComponent(href.trim()).split("/").pop()
+        match = name.match(/^zeroomega-([0-9a-fA-F]+)\.json$/)
+        continue unless match
+        modified = davElements('getlastmodified', block)[0]
+        versions.push(
+          commitId: match[1]
+          lastModified:
+            if modified then Date.parse(modified.trim()) or 0 else 0
+        )
+      versions.sort((a, b) -> b.lastModified - a.lastModified)
+    )
+
+  _pruneOptions: (newCommitId) ->
+    @listOptions().then((versions) =>
+      # The new file is the newest by construction, so it is kept along with
+      # the most recent older ones.
+      keep = {}
+      keep[newCommitId] = true
+      for version in versions when version.lastModified
+        break if Object.keys(keep).length >= BACKUP_VERSIONS
+        keep[version.commitId] = true
+      stale = []
+      for version in versions when version.lastModified
+        stale.push(version) unless keep[version.commitId]
+      Promise.all(stale.map((version) =>
+        @_fetch(@baseUri + @_optionFilename(version.commitId), {
+          method: "DELETE"
+        }).catch(-> return)
+      ))
     )
 
   _generateCommitId: ->
@@ -396,13 +463,41 @@ class OptionsBackup
     data = JSON.parse(JSON.stringify(@options.getAll()))
     client = new WebDavClient()
     client.init(config)
-    client.getLastCommit().then((previousCommitId) ->
-      client.pushOptions(data, previousCommitId)
+    client.pushOptions(data)
+
+  ###*
+  # @returns {Promise<Array<{commitId: string, lastModified: number,
+  #                          latest: boolean}>>}
+  # The backups on the server, newest first, with the one the commit file
+  # points at marked as latest. This is what the settings page lists.
+  ###
+  listBackups: ->
+    client = null
+    latestId = null
+    @getConfig().then((config) ->
+      if not config.uri
+        throw new Error('WebDAV URI is required.')
+      client = new WebDavClient()
+      client.init(config)
+      client.getLastCommit()
+    ).then((commitId) ->
+      latestId = commitId
+      client.listOptions()
+    ).then((versions) ->
+      versions.map((version) ->
+        commitId: version.commitId
+        lastModified: version.lastModified
+        latest: version.commitId == latestId
+      )
     )
 
-  restore: ->
+  # `commitId` selects one of the kept backups; without it the commit file
+  # decides, which is what a plain "restore from backup" means.
+  restore: (commitId) ->
     if @_restoreInProgress
       return Promise.reject(new Error('Restore is already in progress.'))
+    if commitId and not /^[0-9a-zA-Z]+$/.test(commitId)
+      return Promise.reject(new Error('Invalid backup id.'))
     @_restoreInProgress = true
     @_suppressBackupUntil = Date.now() + RESTORE_SUPPRESS_TIME
     client = null
@@ -411,7 +506,7 @@ class OptionsBackup
         throw new Error('WebDAV URI is required.')
       client = new WebDavClient()
       client.init(config)
-      client.getLastCommit()
+      if commitId then commitId else client.getLastCommit()
     ).then((commitId) ->
       if not commitId
         throw new Error('No backup found on the remote server.')

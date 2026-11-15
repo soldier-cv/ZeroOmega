@@ -279,7 +279,9 @@ zeroBackground = (zeroStorage, opts) ->
   optionsBackup = new OmegaTargetCurrent.OptionsBackup(options, state, Log)
   optionsBackup.watch()
   options.backupOptionsNow = -> optionsBackup.backupNow()
-  options.restoreOptionsFromBackup = -> optionsBackup.restore()
+  options.listOptionsBackups = -> optionsBackup.listBackups()
+  options.restoreOptionsFromBackup = (commitId) ->
+    optionsBackup.restore(commitId)
   options.setOptionsBackupConfig = (config) -> optionsBackup.setConfig(config)
   options.syncTempRulesNow = -> optionsBackup.syncTempRules(true)
   options.pullTempRulesIfStale = -> optionsBackup.pullIfStale()

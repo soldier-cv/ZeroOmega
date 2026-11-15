@@ -443,6 +443,24 @@ msgstr "Back up now"
 msgid "options_backupRestore"
 msgstr "Restore from backup"
 
+msgid "options_backupVersion"
+msgstr "Backup version"
+
+msgid "options_backupVersionLatest"
+msgstr "latest"
+
+msgid "options_backupVersionHelp"
+msgstr "The 3 most recent backups are kept on the server; a restore uses the one selected above."
+
+msgid "options_backupVersionRefresh"
+msgstr "Reload the list of backups"
+
+msgid "options_backupVersionFailed"
+msgstr "Cannot read the list of backups; a restore will use the latest one."
+
+msgid "options_backupVersionNone"
+msgstr "No backups on the server yet."
+
 msgid "options_backupLast"
 msgstr "Last backup:"
 
@@ -453,7 +471,7 @@ msgid "options_backupSyncTempRules"
 msgstr "Sync page rules"
 
 msgid "options_backupSyncTempRulesHelp"
-msgstr "Keeps the rules set with the popup's This page view on WebDAV: every change pulls first, merges per site, then uploads; each browser also pulls on start and every 10 minutes."
+msgstr "Keeps the rules set with the popup's This page view on WebDAV: every change pulls first, merges per site, then uploads; each browser also pulls on start and every 30 seconds."
 
 msgid "options_backupTempRulesLast"
 msgstr "Page rules last synced: "

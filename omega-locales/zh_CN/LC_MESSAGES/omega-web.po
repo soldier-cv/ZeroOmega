@@ -416,6 +416,24 @@ msgstr "立即备份"
 msgid "options_backupRestore"
 msgstr "从备份恢复"
 
+msgid "options_backupVersion"
+msgstr "备份版本"
+
+msgid "options_backupVersionLatest"
+msgstr "最新"
+
+msgid "options_backupVersionHelp"
+msgstr "服务器上保留最近 3 个备份；恢复时使用上面选中的版本。"
+
+msgid "options_backupVersionRefresh"
+msgstr "重新读取备份列表"
+
+msgid "options_backupVersionFailed"
+msgstr "读取备份列表失败；恢复时将使用最新的一份。"
+
+msgid "options_backupVersionNone"
+msgstr "服务器上还没有备份。"
+
 msgid "options_backupLast"
 msgstr "上次备份："
 
@@ -426,7 +444,7 @@ msgid "options_backupSyncTempRules"
 msgstr "同步页面规则"
 
 msgid "options_backupSyncTempRulesHelp"
-msgstr "popup「本页」设置的规则存到 WebDAV：每次修改先拉取、按站点合并再上传，打开浏览器和每 10 分钟各拉一次。"
+msgstr "popup「本页」设置的规则存到 WebDAV：每次修改先拉取、按站点合并再上传，打开浏览器和每 30 秒各拉一次。"
 
 msgid "options_backupTempRulesLast"
 msgstr "上次同步页面规则："

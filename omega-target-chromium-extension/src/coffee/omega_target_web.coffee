@@ -206,8 +206,9 @@ angular.module('omegaTarget', []).factory 'omegaTarget', ($q) ->
     openShortcutConfig: ->
       chrome.tabs.create url: 'chrome://extensions/configureCommands'
     backupOptionsNow: -> callBackground('backupOptionsNow')
-    restoreOptionsFromBackup: ->
-      callBackground('restoreOptionsFromBackup')
+    listOptionsBackups: -> callBackground('listOptionsBackups')
+    restoreOptionsFromBackup: (commitId) ->
+      callBackground('restoreOptionsFromBackup', commitId)
     setOptionsBackupConfig: (config) ->
       callBackground('setOptionsBackupConfig', config)
     syncTempRulesNow: -> callBackground('syncTempRulesNow')

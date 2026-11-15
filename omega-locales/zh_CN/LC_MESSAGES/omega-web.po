@@ -434,6 +434,12 @@ msgstr "读取备份列表失败；恢复时将使用最新的一份。"
 msgid "options_backupVersionNone"
 msgstr "服务器上还没有备份。"
 
+msgid "options_backupAdoptTitle"
+msgstr "服务器上已有备份"
+
+msgid "options_backupAdoptHelp"
+msgstr "本浏览器还没有和这台服务器同步过，所以不会自动上传——本机的空配置或默认配置会覆盖掉服务器上的那份好备份。用「从备份恢复」采用服务器上的配置，或用「立即备份」把本机配置传上去成为最新的一份。"
+
 msgid "options_backupLast"
 msgstr "上次备份："
 

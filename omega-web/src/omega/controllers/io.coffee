@@ -21,8 +21,10 @@ angular.module('omega').controller 'IoCtrl', (
     'optionsBackup.lastBackupState'
     'optionsBackup.lastTempRulesSync'
     'optionsBackup.lastTempRulesSyncState'
+    'optionsBackup.adoptPending'
   ]).then ([uri, username, password, autoBackup, syncTempRules, lastBackup,
-    lastBackupState, lastTempRulesSync, lastTempRulesSyncState]) ->
+    lastBackupState, lastTempRulesSync, lastTempRulesSyncState,
+    adoptPending]) ->
     $scope.backupConfig.uri = uri or ''
     $scope.backupConfig.username = username or ''
     $scope.backupConfig.password = password or ''
@@ -32,6 +34,7 @@ angular.module('omega').controller 'IoCtrl', (
     $scope.lastBackupState = lastBackupState or ''
     $scope.lastTempRulesSync = lastTempRulesSync or null
     $scope.lastTempRulesSyncState = lastTempRulesSyncState or ''
+    $scope.backupAdoptPending = adoptPending or ''
     loadBackupVersions() if $scope.backupConfig.uri
 
   $scope.exportOptions = ->
@@ -84,6 +87,20 @@ angular.module('omega').controller 'IoCtrl', (
     return uri if /^https?:\/\//i.test(uri)
     "http://#{uri}"
 
+  # First contact with a server that already holds a backup: the background
+  # holds automatic uploads and records the URI until the user restores that
+  # backup or uploads on purpose. The notice belongs to the server currently
+  # typed in, not to one the user has already edited away from.
+  $scope.backupAdoptPending = ''
+  $scope.adoptPendingFor = (uri) ->
+    pending = $scope.backupAdoptPending
+    return false unless pending
+    pending == normalizeUri(uri).replace(/\/+$/, '')
+
+  refreshAdoptPending = ->
+    omegaTarget.state(['optionsBackup.adoptPending']).then ([pending]) ->
+      $scope.backupAdoptPending = pending or ''
+
   saveBackupConfig = ->
     uri = normalizeUri($scope.backupConfig.uri)
     $scope.backupConfig.uri = uri
@@ -94,7 +111,11 @@ angular.module('omega').controller 'IoCtrl', (
       password: $scope.backupConfig.password
       autoBackup: !!$scope.backupConfig.autoBackup
       syncTempRules: !!$scope.backupConfig.syncTempRules
-    }).finally ->
+    }).then(->
+      # Saving reads the server for the first-contact check, so the notice can
+      # appear without waiting for the next options change.
+      refreshAdoptPending()
+    ).finally ->
       $scope.savingBackupConfig = false
 
   $scope.saveBackupConfig = ->
@@ -119,6 +140,8 @@ angular.module('omega').controller 'IoCtrl', (
         i18n: 'options_backupSuccess'
         message: 'Backup completed.'
       )
+      # An explicit upload settles the first-contact notice.
+      refreshAdoptPending()
       # The new backup is now the latest, so show it as the one to restore.
       loadBackupVersions(true)
     ).catch(showBackupError).finally ->

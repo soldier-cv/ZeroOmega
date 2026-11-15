@@ -489,6 +489,23 @@
 - **待实机**：**先用 Edge 打开设置页 → WebDAV → 「立即备份」把好配置推上去**（当前服务器上那份是坏的）；重载扩展后确认下拉 / 恢复链路（`_locales` 需重载才生效）。
 - **已知 / 边界**：仍没有服务端锁——两台设备几乎同时上传时，两边都按各自看到的列表裁剪，极端情况下可能多删一份（保留 3 份的窗口内影响很小）；「恢复到缺少 profile 的 options 会清掉引用它的页面规则」本次未处理。
 
+### R24. WebDAV 首次连接只读不上传（默认配置不再覆盖服务器备份） — 状态：**构建通过，真实 Chromium 端到端校验通过，待实机确认**（2026-11-15）
+
+- **背景（华总提出）**：「首次配置应该先从服务上拉取，而不是拿本地的去推送覆盖吧？」核对代码确认：保存 WebDAV 设置本身不推送（`setConfig` 只同步页面规则），但 `_autoBackup` 只看 `autoBackup` + `uri`，**完全不看服务器上有没有东西**——R23 事故里那台机器就是「默认配置 + 自动备份」，一次选项改动（`-monitorWebRequests: true`）就把默认配置推成了最新。页面规则早就是「先拉取 → 三方合并 → 再推送」，成套配置这条路没有同等保护。
+- **已确认决策（D27）**：**首次连接不推送**。本机从未与该 URI 成功同步过（`syncedUri != uri`）时，自动备份一律先读服务器：有备份 → 记下 `adoptPending`、暂停自动上传，设置页提示并由用户选择「从备份恢复」或「立即备份」；服务器为空 → 本次上传即基线，自动备份照常。恢复成功与显式「立即备份」都记录基线（`syncedUri`）并清掉提示。
+- **不做「自动从服务器恢复」的原因**：事故场景里服务器那份是坏配置、Edge 本机那份是好的；自动拉取会把本机好配置也毁掉，反向同样危险。提示 + 两条出口对两个方向都安全。
+- **实现（2026-11-15）**：
+  - `omega-target-chromium-extension/src/module/options_backup.coffee`：新增 state 键 `optionsBackup.syncedUri`（与哪个 URI 已同步过）、`optionsBackup.adoptPending`（等待用户决定的 URI）；新增 `_uriOf` / `_canPush` / `_markSynced`；`_autoBackup` 先过 `_canPush`；`setConfig` 保存后立即探测（提示不必等下一次选项改动）；`backupNow` / `restore` 成功后 `_markSynced(uri)`。
+  - `_canPush` 语义：`syncedUri == uri` → 允许；`adoptPending == uri` → 拒绝（不重复请求服务器）；否则读 commit 文件——有备份 → 记 `adoptPending` 并拒绝，无备份 → 记 `syncedUri` 并允许。
+  - `omega-web/src/omega/controllers/io.coffee`：读 `optionsBackup.adoptPending`；`adoptPendingFor(uri)` 与输入框里的地址比较（改了地址就不该再挂着旧提示）；`saveBackupConfig` / `backupNow` 成功后刷新提示状态；`partials/io.jade` 在版本行与按钮之间加 `.alert.alert-warning` 提示。
+  - i18n（`en_US` + `zh_CN`）：新增 `options_backupAdoptTitle` / `options_backupAdoptHelp`。
+- **验证（2026-11-15）**：
+  - `npm run build` 全绿（coffeelint 全过；jade 仅 2 条既有 warning）；omega-target **16 passing / 0 failing**。
+  - 真实 Chromium + 构建产物 + 内存 WebDAV（临时 harness `firstsync.js`，22 条断言全过）：服务器已有备份时首次配置**不产生任何上传**、commit 不动、`adoptPending` 写入；本地改动 + 自动备份开着也不推；设置页出现提示（截图核对位置与文案）；改连空服务器后提示消失、首次上传成为基线、自动备份正常；切回有备份的服务器再次挂起，页面上点「立即备份」后上传成功、提示消失、随后自动备份恢复；清空 `syncedUri` 模拟新设备 → 再次挂起、本地改动不外泄，「从备份恢复」后本机等于服务器副本、提示清空且没有额外上传。
+  - 回归：`history.js`（24 条）、`ui_check.js`（11 条）、`probe6.js`（popup 规则 22 条）全过。
+- **待实机**：重载扩展后确认首次连接提示与两条出口（`_locales` 需重载才生效）。
+- **已知 / 边界**：`adoptPending` 期间自动备份暂停，只有设置页提示说明原因；`syncedUri` 为空且探测失败（网络 / 认证错误）时按旧行为允许推送（此时推送同样会失败），未做离线闸门。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -535,6 +552,7 @@ cd omega-target && npm test
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup「本页」、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
 - **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时、**每 30 秒**（`omega.tempRulesPullV2` 闹钟，带 `If-None-Match`，304 时零传输）、popup 打开与窗口聚焦时各拉一次（后两者 30 秒内已同步则跳过）。失败按指数退避（30s→5min），本地改动 / 保存设置 / 手动同步不受退避限制。详见 R22 / D25。
+- **整体 options 备份**：WebDAV 上传到 `zeroomega/zeroomega-<commitId>.json` + `zeroomega-commit.txt`，**保留最近 3 份**（按 `getlastmodified` 裁剪；列不出一律不删）。**首次连接一个已有备份的服务器时只读不写**：记 `state.optionsBackup.adoptPending`、暂停自动备份，设置页提示由用户选「从备份恢复」或「立即备份」；服务器为空时首次上传即基线；恢复或显式备份记录 `state.optionsBackup.syncedUri` 后自动备份（2s 防抖）恢复。详见 R23 / R24 / D26 / D27。
 - **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊 + 副标题写明实际路由，下面**同一套**情景模式列表）。**模式即路由**：切到「本页」会为当前完整 hostname 写入（或恢复上次选择的）一条页面规则，默认取当前全局情景模式；切到「全局」删除该 host 的规则。**有规则 = 本页，无规则 = 全局**，不再单独存模式偏好；上次在「本页」选的 profile 按 host 记在 `localStorage`（`omega.popup.pageProfile:<host>`），切回全局只删规则、不清记忆。列表行点击只改写这一条 host 规则、**只应用不删除**；没有作用域选择，也没有「撤销本页规则 / 撤销主域规则」按钮。更宽的旧整域规则（popup 已不再创建）在提示行报告，并提供唯一的显式「撤销」——删它会影响同域其它站点。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **更新检查**：background 的 `module/update_check.coffee` 读 R15 端点 `version.json`，打开浏览器时（距上次 >30 分钟）与每 6 小时（`omega.updateCheck` 闹钟）各查一次；发现新版本弹一次系统通知（每个版本一次），点击打开设置页「关于」。「关于」页的「更新」分组显示状态、命令原文与「复制更新命令 / 重载扩展 / 立即检查」。未打包扩展不能自更新，所以安装仍是 PowerShell 命令 + `chrome.runtime.reload()`。popup 里不再有更新入口。
 - **版本查询接口**：`/res/zeroomega/version.json`（机器读，字段与顺序见 R15）+ `version.txt`（一行 `curl` 即得 `vX.Y.Z`）。CI publish 在刷新分发包清单后调用 `tools/ci/write_version_endpoint.py` 原子落盘，版本号取自分发 zip 内的 `manifest.json`；分发包卡片与 `/res/manifest.json` 总表会自动带一条 `version.json` link。
@@ -570,3 +588,4 @@ cd omega-target && npm test
 | D24 | 仓库根放一份 `favicon.svg`，用**品牌蓝圆角方块 + 白色 omega**（复用扩展图标的 path） | 直接拷 `omega-128.svg`（裸标透明底）/ 只放 PNG / 不提供 | OpenChamber 等项目列表只认 `favicon.*`，需要一个能被自动发现的图标；裸标在浅色下基本只剩一圈细线、深色下蓝线偏淡，反色瓷砖在浅 / 深界面下外观一致且 16px 下最稳；一份 SVG 覆盖所有尺寸，不必再维护多份位图 |
 | D25 | 多设备感知 = **30 秒条件轮询 + 事件补拉**，不引入推送 | 维持 10 分钟全量轮询 / 引入 WebSocket 网关、Web Push、Native Messaging 或中间信令服务 / 照抄 FlClash 的手动备份 | dufs 只是带 WebDAV 方法的静态服务器，没有 `sync-collection`、SSE、长轮询，纯 WebDAV 下不存在推送通道；magpie 证明「缩短周期 + 条件请求让每轮几乎免费」即可：dufs 的 ETag 来自文件元数据，`If-None-Match` 命中时只回 304 空 body，30 秒一轮也不耗流量。再叠加 popup 打开 / 窗口聚焦补拉，把用户视角的延迟压到 0。FlClash 是纯手动整包备份（无定时、无 ETag、无合并），无可借鉴处。不新增依赖、不动 manifest / i18n / 路由语义；旧闹钟同名重建不会改周期，故改名迁移 |
 | D26 | WebDAV 备份**保留最近 3 个选项文件**（`BACKUP_VERSIONS = 3`），上传成功后按 `getlastmodified` 从新到旧裁剪；**没有可用 mtime 的文件永不删除**、**列目录失败就整轮跳过裁剪**；设置页给「备份版本」下拉（默认最新），恢复可用任一份，id 走白名单校验。取代 D9 的「单份最新」 | 继续单槽（上传后删旧文件）；保留全部历史靠人工清理；把「覆盖保护」做成写入前确认 | 事故实证：某台默认配置的设备上传一次就把唯一的好备份 DELETE 掉，恢复端忠实照搬，于是「恢复出默认配置」——问题在上传侧的单槽策略，不在恢复。3 份足以覆盖「刚发现坏了」的场景，又不至于让目录无限膨胀；用 mtime 排序不依赖设备时钟；宁可多留文件也不删错，因为 `getlastmodified` 是唯一的排序依据。下拉默认最新，是因为日常操作仍是「恢复最近一次」，看历史是偶发需求。本次**未做**：服务端锁 / 覆盖保护 / 「恢复到缺少 profile 的 options 会清掉引用它的页面规则」 |
+| D27 | 首次连接一个**已有备份**的服务器时**只读不写**：记 `adoptPending` 并暂停自动备份，设置页提示，由用户选「从备份恢复」或「立即备份」；服务器为空则首次上传即基线；恢复 / 显式备份记录 `syncedUri` 后自动备份恢复 | 首次配置自动从服务器恢复；维持「有变更就推」只靠 3 份历史兜底 | 华总指出「首次配置应该先从服务上拉取，而不是拿本地的去推送覆盖」。自动**推**已知会造成事故（默认配置覆盖好备份）；自动**拉**同样危险——事故里服务器那份正是坏的，会自动毁掉本机好配置。提示 + 两条显式出口对两个方向都安全，且不引入新的静默数据丢失；`syncedUri` 按 URI 记，换服务器会重新走首次检查 |

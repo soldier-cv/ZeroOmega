@@ -461,6 +461,12 @@ msgstr "Cannot read the list of backups; a restore will use the latest one."
 msgid "options_backupVersionNone"
 msgstr "No backups on the server yet."
 
+msgid "options_backupAdoptTitle"
+msgstr "The server already has a backup"
+
+msgid "options_backupAdoptHelp"
+msgstr "This browser has not synced with this server yet, so nothing is uploaded automatically: an empty or default configuration would replace the good backup on the server. Use Restore from backup to adopt the server's copy, or Back up now to make the one on this browser the latest."
+
 msgid "options_backupLast"
 msgstr "Last backup:"
 

@@ -74,6 +74,12 @@ section.settings-group
       | {{'options_backupVersionFailed' | tr}}
     span.help-inline(ng-show='!backupVersions.length && !backupVersionsFailed && !loadingBackupVersions')
       | {{'options_backupVersionNone' | tr}}
+  div.alert.alert-warning(ng-if='adoptPendingFor(backupConfig.uri)')
+    p
+      span.glyphicon.glyphicon-warning-sign
+      = ' '
+      strong {{'options_backupAdoptTitle' | tr}}
+    p {{'options_backupAdoptHelp' | tr}}
   p
     button.btn.btn-default(ng-click='saveBackupConfig()'
       ladda='savingBackupConfig' data-spinner-color="#000000")

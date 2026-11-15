@@ -368,6 +368,8 @@ class OptionsBackup
       'optionsBackup.lastBackup': null
       'optionsBackup.lastBackupCommit': ''
       'optionsBackup.lastBackupState': ''
+      'optionsBackup.syncedUri': ''
+      'optionsBackup.adoptPending': ''
     }).then((raw) ->
       uri: raw['optionsBackup.uri'] or ''
       username: raw['optionsBackup.username'] or ''
@@ -377,6 +379,8 @@ class OptionsBackup
       lastBackup: raw['optionsBackup.lastBackup'] or null
       lastBackupCommit: raw['optionsBackup.lastBackupCommit'] or ''
       lastBackupState: raw['optionsBackup.lastBackupState'] or ''
+      syncedUri: raw['optionsBackup.syncedUri'] or ''
+      adoptPending: raw['optionsBackup.adoptPending'] or ''
     )
 
   setConfig: (config = {}) ->
@@ -387,6 +391,13 @@ class OptionsBackup
       # A newly configured server is pulled right away, so rules set on other
       # devices show up without waiting for the next alarm.
       @syncTempRules(true).catch(-> return)
+    ).then(=>
+      # Read the server at save time as well, so the settings page can show the
+      # first-contact notice right away instead of after the next change.
+      @getConfig().then((cfg) =>
+        return unless cfg.uri
+        @_canPush(cfg).catch(-> return)
+      )
     )
 
   ###*
@@ -434,23 +445,64 @@ class OptionsBackup
     return if Date.now() < @_suppressBackupUntil
     @getConfig().then((config) =>
       return unless config.autoBackup and config.uri
-      @backupNow().catch((e) ->
-        console.error('ZeroOmega: auto backup failed:', e)
+      @_canPush(config).then((allowed) =>
+        return unless allowed
+        @backupNow().catch((e) ->
+          console.error('ZeroOmega: auto backup failed:', e)
+        )
       )
     ).catch((e) ->
       console.error('ZeroOmega: auto backup failed:', e)
     )
 
+  _uriOf: (config) -> (config.uri or '').replace(/\/+$/, '')
+
+  # Whether this browser may upload its options to the configured server.
+  #
+  # A browser that has never synced with this server cannot push first: its
+  # options may still be the defaults, and uploading them would replace the
+  # backup the other devices rely on (a single-slot backup lost it for good).
+  # So the first contact only reads the server: an existing backup is reported
+  # to the user, who then either restores it or uploads on purpose. An empty
+  # server has nothing to protect, and the first upload becomes the baseline.
+  _canPush: (config) ->
+    uri = @_uriOf(config)
+    return Promise.resolve(true) if config.syncedUri == uri
+    # Already waiting for the user to pick a side; do not re-read the server on
+    # every local change.
+    return Promise.resolve(false) if config.adoptPending == uri
+    client = new WebDavClient()
+    client.init(config)
+    client.getLastCommit().then((commitId) =>
+      if commitId
+        @_state.set({'optionsBackup.adoptPending': uri}).then(-> false)
+      else
+        @_markSynced(uri).then(-> true)
+    )
+
+  # The user settled the first contact (restore, explicit upload) or the server
+  # was empty: later uploads cannot lose anything.
+  _markSynced: (uri) ->
+    @_state.set({
+      'optionsBackup.syncedUri': uri
+      'optionsBackup.adoptPending': ''
+    })
+
   backupNow: ->
     if @_backupInProgress
       return Promise.reject(new Error('Backup is already in progress.'))
     @_backupInProgress = true
+    uri = ''
     @getConfig().then((config) =>
       if not config.uri
         throw new Error('WebDAV URI is required.')
+      uri = @_uriOf(config)
       @options.ready.then(=> @_pushBackup(config))
     ).then(({commitId}) =>
       @_backupInProgress = false
+      # An explicit upload is a decision, so it also settles the first-contact
+      # notice and the automatic backups may push freely afterwards.
+      @_markSynced(uri)
       @_setResult('success', commitId)
       return {commitId}
     ).catch((e) =>
@@ -501,9 +553,11 @@ class OptionsBackup
     @_restoreInProgress = true
     @_suppressBackupUntil = Date.now() + RESTORE_SUPPRESS_TIME
     client = null
-    @getConfig().then((config) ->
+    uri = ''
+    @getConfig().then((config) =>
       if not config.uri
         throw new Error('WebDAV URI is required.')
+      uri = @_uriOf(config)
       client = new WebDavClient()
       client.init(config)
       if commitId then commitId else client.getLastCommit()
@@ -516,7 +570,9 @@ class OptionsBackup
     ).then(=>
       @_restoreInProgress = false
       @_suppressBackupUntil = Date.now() + RESTORE_SUPPRESS_TIME
-      return
+      # The local options are the server's copy now, so a later upload cannot
+      # lose anything and the first-contact notice is settled.
+      @_markSynced(uri)
     ).catch((e) =>
       @_restoreInProgress = false
       throw e

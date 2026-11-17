@@ -44,6 +44,11 @@
     - 扩展启动路径（background / service worker）不做阻塞式重活；网络与存储操作一律异步，且**失败可容忍**（不因远端不可达而中断启动，如 R7 的备份快照重建）。
     - 改动涉及规则匹配 / PAC 生成时，注意不要引入 O(n²) 或每次请求都重算的开销。
 12. **分支纪律（硬性）**：所有开发、提交、打 tag 都在 **`custom_main`** 上进行；`master` 只作为上游基线（v3.5.2，与 `origin/master` 同步），**不在 master 上提交、不在 master 上打 tag**。发版 tag 打在 `custom_main` 的发布提交上，不要为 tag 单独切分支或合并到 master。
+13. **打 tag 前必须核对（硬性）**：tag 指向的提交必须同时满足三条，否则打错了流水线会发出旧版本（v3.7.2 曾把 tag 打在纯文档提交上，分发产物是 3.7.1）：
+    - `git show <commit>:omega-target-chromium-extension/overlay/manifest.json` 的 `version` 等于 tag 名去掉 `v`；
+    - `CHANGELOG.md` 有该版本段落；
+    - `.woodpecker.yml` 是该提交自己的版本（Woodpecker 只读 tag 指向提交的配置，打在旧提交上会用旧的 CI 配置构建）。
+    tag 打在合并提交上时，须确认发布提交与 CI 改动都在其祖先里。
 
 ## 3. 需求台账（Requirements Ledger）
 

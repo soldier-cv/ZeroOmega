@@ -1,10 +1,6 @@
 (function() {
   var keyForId = {
     'js-direct': '0',
-    'js-system': 'S',
-    'js-external': 'E',
-    'js-addrule': 'A',
-    'js-mode-toggle': 'T',
     'js-option': 'O',
     'js-reqinfo': 'R'
   }
@@ -26,11 +22,7 @@
       span.classList.add('om-keyboard-help');
       span.textContent = key;
       var reference = element.querySelector('.glyphicon');
-      // The mode chip has no icon and a leading badge would crowd its label,
-      // so the hint goes after it.
-      if (element.classList.contains('om-switch')) {
-        element.appendChild(span);
-      } else if (reference) {
+      if (reference) {
         reference.parentNode.insertBefore(span, reference.nextSibling);
       } else {
         element.insertBefore(span, element.firstChild);

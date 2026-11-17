@@ -509,9 +509,14 @@ zeroBackground = (zeroStorage, opts) ->
         return
 
       # Capture the active page's route before the change, synchronously, so
-      # message ordering is unchanged. Only a real route change reloads it.
+      # message ordering is unchanged. A profile click asks for refreshAlways:
+      # re-selecting the checked profile must still reload with it, so skip the
+      # comparison in that case.
       url = request.activeTabUrl
-      before = if request.refreshActivePage then routeResult(url) else null
+      if request.refreshAlways
+        before = null
+      else
+        before = if request.refreshActivePage then routeResult(url) else null
       promise = Promise.resolve().then -> method.apply(target, request.args)
       if request.refreshActivePage
         promise.then((result) ->

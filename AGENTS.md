@@ -506,6 +506,21 @@
 - **待实机**：重载扩展后确认首次连接提示与两条出口（`_locales` 需重载才生效）。
 - **已知 / 边界**：`adoptPending` 期间自动备份暂停，只有设置页提示说明原因；`syncedUri` 为空且探测失败（网络 / 认证错误）时按旧行为允许推送（此时推送同样会失败），未做离线闸门。
 
+### R25. popup 去掉「全局 / 本页」切换：一址一「当前」规则 + 选项里的「默认」 — 状态：**构建与浏览器校验通过，待实机确认**（2026-11-17）
+
+- **背景（华总反馈）**：① 整域规则提示「本页实际走 … 来自 findfine.com 下所有站点共用的临时规则」不该再出现；② 在「本页」点击已勾选的情景会擅自跳回「全局」，期望是按当前情景刷新；③ 截图指出顶部「站点名 + 本页/全局切换 + 副标题」整块区域已无必要；④「点击 auto switch 似乎无效」——根因与②相同：force set 命中同一 profile 时 `addTempRule` 早退、路由未变故不刷新，呈现为“点了没反应”。
+- **已确认决策（D28）**：popup 不再有模式概念。每个站点只有一条持久化的「当前」规则（WebDAV 同步）；选项页的「初始情景模式」改称「默认情景模式」，仅作为**新域名**的种子。文案「全局 / 本页」→「默认 / 当前」。
+- **实现（2026-11-17）**：
+  - `omega-web/src/popup/index.html`：删除整个 `#js-page-header`（含模式胶囊与整域提示行），列表区加 id `#js-profiles-section`，新增不可设置时的说明卡 `#js-unavailable`。
+  - `omega-web/src/popup/js/profiles.js`：重写——删除 `OmegaPopup.mode` / `setMode` / `otherRule` / `renderInherited` / 作用域与主域偏好 / localStorage 记忆；新开无规则站点时 `seedProfile()` 取**实际命中的规则**（更宽的整域规则，否则默认 profile）播种（force set，不刷新页面）；点任意行 = force set 本 host 规则 + **强制刷新页面**（即使路由文本不变），重复点击同一行不再早退成“无反应”；系统代理 / 外部 PAC 时隐藏列表并显示说明；隐藏系统代理行与「添加条件」行；删掉改 switch profile 默认结果的 chevron。
+  - `omega-web/src/popup/js/index.js`：`chooseProfile` 只走 `applyPageProfile`；`addTempRule` 增加 `refreshAlways` 参数。
+  - `omega-target-chromium-extension/src/js/omega_target_popup.js` + `src/coffee/background.coffee`：`refreshAlways` 时跳过 before/after 比较，强制 `tabs.reload`；其余调用方行为不变。
+  - `keyboard.js` / `keyboard_help.js` / `css/index.css`：删模式、系统代理、添加条件、下拉相关快捷键与样式。
+  - i18n（`en_US` 源 + `zh_CN`）：删 `popup_mode*` / `popup_domainOverride*` / `popup_global*` / `popup_pageUsing` / `popup_pageProfilesFor` / `popup_tempRuleUnavailableHelp`；新增 `popup_currentProfilesFor` / `popup_currentSystem` / `popup_currentExternal`；`options_startupProfile` 改为「默认情景模式 / Default Profile」（仅文案，`-startupProfileName` 机制不变）。
+- **影响**：默认 profile 只在**新域名**首次打开时播种；已访问过的站点改默认不会跟着变；popup 不再应用全局 profile（改在选项页「默认情景模式」）。旧的整域规则不再显示也不再新创建，但存储里仍在（被 host 规则遮蔽）。
+- **验证（2026-11-17）**：`npm run build` 全绿（coffeelint 全过，jade 仅 2 条既有 warning）；omega-target **16 passing / 0 failing**；popup 六个文件构建产物与源逐字节一致，`_locales` 含新文案、旧文案已移除。Chromium + 构建产物 + chrome API 桩（临时 harness，不入库）核对：新域名播种一条 force set 规则（不刷新）、整域规则场景种子取实际命中的 `direct`（路由不变）、已有自身规则不再播种、点任意行（含重复点击同一行）均发 `refreshAlways: true` 且勾选跟随、系统代理 / 外部 PAC 时列表隐藏并显示说明、顶部卡片已移除。
+- **待实机**：重载扩展后确认（i18n 需重载才生效），尤其是「点 auto switch 会刷新页面」与选项页「默认情景模式」文案。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -550,10 +565,10 @@ cd omega-target && npm test
 ### 4.4 关键运行机制
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
-- **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup「本页」、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
+- **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup（当前站点一址一规则，打开时按默认 / 实际命中规则播种）、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
 - **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时、**每 30 秒**（`omega.tempRulesPullV2` 闹钟，带 `If-None-Match`，304 时零传输）、popup 打开与窗口聚焦时各拉一次（后两者 30 秒内已同步则跳过）。失败按指数退避（30s→5min），本地改动 / 保存设置 / 手动同步不受退避限制。详见 R22 / D25。
 - **整体 options 备份**：WebDAV 上传到 `zeroomega/zeroomega-<commitId>.json` + `zeroomega-commit.txt`，**保留最近 3 份**（按 `getlastmodified` 裁剪；列不出一律不删）。**首次连接一个已有备份的服务器时只读不写**：记 `state.optionsBackup.adoptPending`、暂停自动备份，设置页提示由用户选「从备份恢复」或「立即备份」；服务器为空时首次上传即基线；恢复或显式备份记录 `state.optionsBackup.syncedUri` 后自动备份（2s 防抖）恢复。详见 R23 / R24 / D26 / D27。
-- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；顶部页卡片 = 站点名 + 一个「全局 / 本页」状态胶囊 + 副标题写明实际路由，下面**同一套**情景模式列表）。**模式即路由**：切到「本页」会为当前完整 hostname 写入（或恢复上次选择的）一条页面规则，默认取当前全局情景模式；切到「全局」删除该 host 的规则。**有规则 = 本页，无规则 = 全局**，不再单独存模式偏好；上次在「本页」选的 profile 按 host 记在 `localStorage`（`omega.popup.pageProfile:<host>`），切回全局只删规则、不清记忆。列表行点击只改写这一条 host 规则、**只应用不删除**；没有作用域选择，也没有「撤销本页规则 / 撤销主域规则」按钮。更宽的旧整域规则（popup 已不再创建）在提示行报告，并提供唯一的显式「撤销」——删它会影响同域其它站点。系统代理与「添加条件」在本页模式下隐藏；键盘 `T` 切换。「添加条件」与「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
+- **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；无顶部站点卡、无「全局 / 本页」切换，只有一条「`<host>` 的当前情景模式」标题 + 一套情景模式列表 + 「选项」行）。**一址一「当前」规则**：每个完整 hostname 一条持久化规则；新域名首次打开时按「实际命中的规则（更宽的整域规则）→ 否则默认情景模式」播种（force set、不刷新页面）。点任意行（含已勾选行）= 写该 host 规则 + **强制刷新页面**（`refreshAlways`，即使路由文本不变），重复点击不再无反应；列表行勾选即当前规则。系统代理 / 外部 PAC 时列表隐藏、显示说明；系统代理行、「添加条件」行、改 switch 默认结果的 chevron、模式相关快捷键均已移除。选项页的「默认情景模式」（原「初始情景模式」，`-startupProfileName`）只作新域名种子，popup 不再应用全局 profile；旧的整域规则不再显示也不再创建，但仍在存储里被 host 规则遮蔽。「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **更新检查**：background 的 `module/update_check.coffee` 读 R15 端点 `version.json`，打开浏览器时（距上次 >30 分钟）与每 6 小时（`omega.updateCheck` 闹钟）各查一次；发现新版本弹一次系统通知（每个版本一次），点击打开设置页「关于」。「关于」页的「更新」分组显示状态、命令原文与「复制更新命令 / 重载扩展 / 立即检查」。未打包扩展不能自更新，所以安装仍是 PowerShell 命令 + `chrome.runtime.reload()`。popup 里不再有更新入口。
 - **版本查询接口**：`/res/zeroomega/version.json`（机器读，字段与顺序见 R15）+ `version.txt`（一行 `curl` 即得 `vX.Y.Z`）。CI publish 在刷新分发包清单后调用 `tools/ci/write_version_endpoint.py` 原子落盘，版本号取自分发 zip 内的 `manifest.json`；分发包卡片与 `/res/manifest.json` 总表会自动带一条 `version.json` link。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签页失败请求 → popup 顶部“N 资源未加载”入口（详情模式下可按 host 添加条件 / 临时条件）。
@@ -589,3 +604,4 @@ cd omega-target && npm test
 | D25 | 多设备感知 = **30 秒条件轮询 + 事件补拉**，不引入推送 | 维持 10 分钟全量轮询 / 引入 WebSocket 网关、Web Push、Native Messaging 或中间信令服务 / 照抄 FlClash 的手动备份 | dufs 只是带 WebDAV 方法的静态服务器，没有 `sync-collection`、SSE、长轮询，纯 WebDAV 下不存在推送通道；magpie 证明「缩短周期 + 条件请求让每轮几乎免费」即可：dufs 的 ETag 来自文件元数据，`If-None-Match` 命中时只回 304 空 body，30 秒一轮也不耗流量。再叠加 popup 打开 / 窗口聚焦补拉，把用户视角的延迟压到 0。FlClash 是纯手动整包备份（无定时、无 ETag、无合并），无可借鉴处。不新增依赖、不动 manifest / i18n / 路由语义；旧闹钟同名重建不会改周期，故改名迁移 |
 | D26 | WebDAV 备份**保留最近 3 个选项文件**（`BACKUP_VERSIONS = 3`），上传成功后按 `getlastmodified` 从新到旧裁剪；**没有可用 mtime 的文件永不删除**、**列目录失败就整轮跳过裁剪**；设置页给「备份版本」下拉（默认最新），恢复可用任一份，id 走白名单校验。取代 D9 的「单份最新」 | 继续单槽（上传后删旧文件）；保留全部历史靠人工清理；把「覆盖保护」做成写入前确认 | 事故实证：某台默认配置的设备上传一次就把唯一的好备份 DELETE 掉，恢复端忠实照搬，于是「恢复出默认配置」——问题在上传侧的单槽策略，不在恢复。3 份足以覆盖「刚发现坏了」的场景，又不至于让目录无限膨胀；用 mtime 排序不依赖设备时钟；宁可多留文件也不删错，因为 `getlastmodified` 是唯一的排序依据。下拉默认最新，是因为日常操作仍是「恢复最近一次」，看历史是偶发需求。本次**未做**：服务端锁 / 覆盖保护 / 「恢复到缺少 profile 的 options 会清掉引用它的页面规则」 |
 | D27 | 首次连接一个**已有备份**的服务器时**只读不写**：记 `adoptPending` 并暂停自动备份，设置页提示，由用户选「从备份恢复」或「立即备份」；服务器为空则首次上传即基线；恢复 / 显式备份记录 `syncedUri` 后自动备份恢复 | 首次配置自动从服务器恢复；维持「有变更就推」只靠 3 份历史兜底 | 华总指出「首次配置应该先从服务上拉取，而不是拿本地的去推送覆盖」。自动**推**已知会造成事故（默认配置覆盖好备份）；自动**拉**同样危险——事故里服务器那份正是坏的，会自动毁掉本机好配置。提示 + 两条显式出口对两个方向都安全，且不引入新的静默数据丢失；`syncedUri` 按 URI 记，换服务器会重新走首次检查 |
+| D28 | popup **去掉模式概念**：每个站点一条持久化的「当前」规则（force set 写入），选项页的「默认情景模式」（原启动情景模式）只作新域名的种子；删除顶部站点卡 + 模式胶囊 + 整域提示行；点任意情景行（含已勾选项）= 写规则 + **强制刷新页面**；系统代理 / 外部 PAC 时只显示说明 | 保留「全局 / 本页」胶囊并把点击已选项当幂等无操作 / 仅在规则变化时刷新 / 继续展示整域规则提示行 | 模式与规则分离正是 BUG ①（整域提示）与②（点已选项被重算成全局）的来源；force set 早退 + 「路由未变不刷新」又让「点 auto switch 没反应」。合并成单一「当前」概念后，高亮与路由天然一致、无需撤销按钮；强制刷新让每次点击都有确定反馈。默认只种子新域名，避免改默认把已有站点冲掉；popup 不再改全局，全局收敛到选项页配置 |

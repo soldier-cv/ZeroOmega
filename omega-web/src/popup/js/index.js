@@ -3,9 +3,6 @@
   handleClick('js-direct', chooseProfile.bind(this, 'direct'));
   handleClick('js-system', chooseProfile.bind(this, 'system'));
   OmegaPopup.addTempRule = addTempRule;
-  OmegaPopup.clearTempRule = clearTempRule;
-  OmegaPopup.setDefaultProfile = setDefaultProfile;
-  OmegaPopup.applyProfile = applyProfile;
   OmegaPopup.chooseProfile = chooseProfile;
   return;
 
@@ -30,47 +27,22 @@
     }
   }
 
-  function applyProfile(profileName) {
-    $script.ready('om-target', function() {
-      OmegaTargetPopup.applyProfile(profileName, closePopup);
-    });
-  }
-
-  // A click on a profile row does whatever the mode button says: in global
-  // mode it becomes the global profile; in page mode it becomes this site's
-  // own rule.
+  // There is only one list now: a click always sets this site's rule. The
+  // check mark and the page reload come from the popup and the background
+  // respectively; nothing here switches scopes or closes the popup.
   function chooseProfile(profileName) {
     $script.ready('om-target', function() {
-      if (OmegaPopup.mode === 'page') {
-        if (profileName === 'system') return;
-        if (OmegaPopup.applyPageProfile) OmegaPopup.applyPageProfile(profileName);
-      } else {
-        applyProfile(profileName);
-      }
+      if (profileName === 'system') return;
+      if (OmegaPopup.applyPageProfile) OmegaPopup.applyPageProfile(profileName);
     });
   }
 
-  // Remove a temp rule without closing the popup, so the page card can update
-  // its state in place. Force delete (-1) so a stale pageInfo copy cannot turn
-  // this into a toggle that re-adds the rule.
-  function clearTempRule(domain, profileName) {
+  // refreshAlways forces the active page to reload even when the route text is
+  // unchanged, so re-clicking the checked profile still refreshes it.
+  function addTempRule(domain, profileName, toggle, refreshAlways) {
     $script.ready('om-target', function() {
-      OmegaTargetPopup.addTempRule(domain, profileName, -1);
-    });
-  }
-
-  function setDefaultProfile(profileName, defaultProfileName) {
-    $script.ready('om-target', function() {
-      OmegaTargetPopup.setDefaultProfile(profileName, defaultProfileName,
-        closePopup);
-    });
-  }
-
-  function addTempRule(domain, profileName, toggle) {
-    $script.ready('om-target', function() {
-      // The popup stays open: the site rule is applied immediately and the
-      // header reports it, so the user can switch profile again.
-      OmegaTargetPopup.addTempRule(domain, profileName, toggle);
+      OmegaTargetPopup.addTempRule(domain, profileName, toggle, null,
+        refreshAlways);
     });
   }
 })();

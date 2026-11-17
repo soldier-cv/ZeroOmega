@@ -1,4 +1,4 @@
-function callBackgroundNoReply(method, args, cb) {
+function callBackgroundNoReply(method, args, cb, refreshAlways) {
   // The popup already knows the page it is about; carry its URL so the
   // background can compare the route before/after without an extra async
   // tab query ahead of the change (which would reorder messages).
@@ -8,6 +8,7 @@ function callBackgroundNoReply(method, args, cb) {
     args: args,
     noReply: true,
     refreshActivePage: true,
+    refreshAlways: !!refreshAlways,
     activeTabUrl: info ? info.url : null,
   });
   if (cb) return cb();
@@ -85,12 +86,13 @@ OmegaTargetPopup = {
   pullTempRules: function(cb) {
     callBackground('pullTempRulesIfStale', [], cb);
   },
-  addTempRule: function(domain, profileName, toggle, cb) {
+  addTempRule: function(domain, profileName, toggle, cb, refreshAlways) {
     if (typeof toggle == 'function') {
       cb = toggle;
       toggle = null;
     }
-    callBackgroundNoReply('addTempRule', [domain, profileName, toggle], cb);
+    callBackgroundNoReply('addTempRule', [domain, profileName, toggle], cb,
+      refreshAlways);
   },
   openManage: function(domain, profileName, cb) {
     chrome.tabs.create({

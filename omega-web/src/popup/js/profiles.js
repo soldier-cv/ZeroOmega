@@ -28,6 +28,8 @@
   // seeded on first open from the route actually in effect (a wider rule, else
   // the default profile), so seeding never changes where the page goes.
   var pageInfoToken = 0;
+  var LINK_PREF = 'omega.popup.linkGroup';
+  var linkPref = null;
 
   $script.ready('om-state', updateMenuByState);
   $script.ready('om-page-info', updateMenuByPageInfo);
@@ -50,6 +52,7 @@
     }
     addProfilesItems(state);
     $script.done('om-profile-items');
+    bindLinkControls();
     renderCurrent();
   }
 
@@ -76,6 +79,8 @@
     if (section) section.classList.add('om-hidden');
     var notice = document.getElementById('js-unavailable');
     if (notice) notice.classList.add('om-hidden');
+    var link = document.getElementById('js-link-section');
+    if (link) link.classList.add('om-hidden');
   }
 
   // The one rule this popup manages: the full hostname's own rule.
@@ -123,30 +128,248 @@
   }
 
   function renderPageSection() {
-    if (perSiteAvailable() && !ownRule()) {
+    if (perSiteAvailable() && !matchedRule()) {
       var seed = seedProfile();
       if (seed) writePageRoute(seed, false);
     }
     renderCurrent();
   }
 
-  // Force set (2) never toggles: a stale pageInfo copy must not turn a click
-  // into a delete. Refresh is explicit so re-clicking the checked profile
-  // still reloads the page with that profile instead of looking inert.
-  function writePageRoute(profileName, refresh) {
+  // Force set (2) never toggles. With linking on, each listed host gets its own
+  // explicit rule; only the last write refreshes the page, so one click reloads
+  // at most once. Seeding calls this with no host list and touches only this host.
+  function writePageRoute(profileName, refresh, hosts) {
     var info = OmegaPopup.pageInfo;
     if (!info || !info.host || !profileName) return false;
     if (!OmegaPopup.addTempRule) return false;
-    OmegaPopup.addTempRule(info.host, profileName, 2, !!refresh);
-    info.tempRuleHostProfileName = profileName;
-    info.tempRuleMatch = {key: info.host, profileName: profileName};
+    var targets = hosts && hosts.length ? hosts : [info.host];
+    targets.forEach(function(host, i) {
+      OmegaPopup.addTempRule(host, profileName, 2,
+        !!refresh && i === targets.length - 1);
+    });
+    if (isWildcard() && info.domain) {
+      info.tempRuleProfileName = profileName;
+      info.tempRuleMatch = {key: info.domain, profileName: profileName};
+    } else {
+      info.tempRuleHostProfileName = profileName;
+      info.tempRuleMatch = {key: info.host, profileName: profileName};
+    }
     return true;
   }
 
   function applyPageProfile(profileName) {
     if (!validProfileName(profileName)) return;
-    if (!writePageRoute(profileName, true)) return;
+    if (!writePageRoute(profileName, true, linkedTargets())) return;
     renderCurrent();
+    renderLinkSection();
+    // The optimistic rule in writePageRoute is what was just applied; a
+    // follow-up read races the page reload and can show a stale profile.
+  }
+
+  function profileTitle(name) {
+    if (!name) return '';
+    var text = getMessage('profile_' + name) || name;
+    return text.replace(/^\[|\]$/g, '');
+  }
+
+  // ---- Scope: this host, or the whole-domain wildcard ---------------------
+  // The switch is a persisted per-domain UI preference: it only chooses where
+  // the next profile click writes, and never changes rules by itself. A host
+  // added in the input is bound immediately to the profile now in effect.
+
+  function linkKey() {
+    var info = OmegaPopup.pageInfo;
+    var domain = info && info.domain;
+    return domain ? LINK_PREF + ':' + domain : null;
+  }
+
+  function loadLinkPref() {
+    var key = linkKey();
+    if (!key) return {wildcard: false, manual: []};
+    try {
+      var raw = globalThis.localStorage.getItem(key);
+      var p = raw && JSON.parse(raw);
+      if (p && Array.isArray(p.manual)) {
+        return {
+          // Migrate the earlier "联动" preference into wildcard mode.
+          wildcard: !!(p.wildcard || p.enabled),
+          manual: p.manual.map(function(item) {
+            return typeof item === 'string' ? {host: item, profile: ''} : item;
+          })
+        };
+      }
+    } catch (_) {
+    }
+    return {wildcard: false, manual: []};
+  }
+
+  function saveLinkPref() {
+    var key = linkKey();
+    if (!key || !linkPref) return;
+    try {
+      globalThis.localStorage.setItem(key, JSON.stringify(linkPref));
+    } catch (_) {
+    }
+  }
+
+  function inDomain(host, domain) {
+    return host === domain ||
+      host.slice(-(domain.length + 1)) === '.' + domain;
+  }
+
+  function isWildcard() {
+    return !!(linkPref && linkPref.wildcard);
+  }
+
+  // The profile actually in effect for this page, reported by the background.
+  // Covers both a host rule and a wider domain rule.
+  function currentRuleProfile() {
+    var match = matchedRule();
+    var info = OmegaPopup.pageInfo;
+    if (match && info &&
+        (match.key === info.host || match.key === info.domain)) {
+      return match.profileName;
+    }
+    return null;
+  }
+
+  function linkedTargets() {
+    var info = OmegaPopup.pageInfo;
+    if (!info) return [];
+    // In whole-domain mode also write the current host with the same profile.
+    // A lingering host rule would otherwise shadow the wildcard rule and the
+    // page (and the check) would keep following the old profile.
+    if (isWildcard() && info.domain) {
+      return info.host ? [info.domain, info.host] : [info.domain];
+    }
+    return info.host ? [info.host] : [];
+  }
+
+  function renderLinkSection() {
+    var section = document.getElementById('js-link-section');
+    if (!section) return;
+    var info = OmegaPopup.pageInfo;
+    if (!perSiteAvailable() || !info || !info.domain) {
+      section.classList.add('om-hidden');
+      return;
+    }
+    section.classList.remove('om-hidden');
+    if (!linkPref) linkPref = loadLinkPref();
+
+    var toggle = document.getElementById('js-link-toggle');
+    if (toggle) {
+      toggle.setAttribute('aria-checked', isWildcard() ? 'true' : 'false');
+      toggle.classList.toggle('om-switch-on', isWildcard());
+      toggle.setAttribute('aria-label', getMessage('popup_scopeSwitch'));
+      toggle.setAttribute('title', getMessage('popup_scopeSwitch'));
+    }
+    var scopeLabel = document.getElementById('js-scope-label');
+    if (scopeLabel) {
+      scopeLabel.textContent = getMessage(isWildcard() ?
+        'popup_scopeDomain' : 'popup_scopeCurrent');
+    }
+    var scopeSub = document.getElementById('js-scope-sub');
+    if (scopeSub) {
+      scopeSub.textContent = getMessage(isWildcard() ?
+        'popup_scopeDomainHint' : 'popup_scopeCurrentHint',
+        [isWildcard() ? info.domain : info.host]);
+    }
+
+    var bindArea = document.getElementById('js-bind-area');
+    if (bindArea) bindArea.classList.toggle('om-hidden', isWildcard());
+    var input = document.getElementById('js-link-input');
+    if (input) input.placeholder = getMessage('popup_bindPlaceholder');
+    var add = document.getElementById('js-link-add');
+    if (add) add.textContent = getMessage('popup_bindAdd');
+
+    var list = document.getElementById('js-link-list');
+    if (!list) return;
+    list.textContent = '';
+    if (!linkPref.manual.length) return;
+    linkPref.manual.forEach(function(item) {
+      var row = document.createElement('div');
+      row.className = 'om-bind-chip';
+      var name = document.createElement('span');
+      name.className = 'om-bind-chip-host';
+      name.textContent = item.host;
+      var rule = document.createElement('span');
+      rule.className = 'om-bind-chip-rule';
+      rule.textContent = profileTitle(item.profile);
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'om-bind-chip-remove';
+      remove.setAttribute('title', getMessage('popup_linkRemove'));
+      remove.textContent = '\u00d7';
+      remove.addEventListener('click', function(e) {
+        e.stopPropagation();
+        unbindHost(item.host);
+      });
+      row.appendChild(name);
+      row.appendChild(rule);
+      row.appendChild(remove);
+      list.appendChild(row);
+    });
+  }
+
+  function bindHost() {
+    var input = document.getElementById('js-link-input');
+    var info = OmegaPopup.pageInfo;
+    var host = input && input.value && input.value.trim().toLowerCase();
+    // Strip a scheme or trailing path so pasting a URL still works.
+    if (host) host = host.replace(/^[a-z]+:\/\//, '').split('/')[0];
+    if (!host || !info || !info.domain) return;
+    if (host === info.host || host === info.domain ||
+        !inDomain(host, info.domain)) return;
+    if (!linkPref) linkPref = loadLinkPref();
+    var profile = currentRuleProfile() ||
+      (OmegaPopup.state && OmegaPopup.state.currentProfileName);
+    if (!profile || !OmegaPopup.addTempRule) return;
+    // Bind now: one action writes the rule, no second click needed.
+    OmegaPopup.addTempRule(host, profile, 2, false);
+    var found = false;
+    linkPref.manual.forEach(function(item) {
+      if (item.host === host) { item.profile = profile; found = true; }
+    });
+    if (!found) linkPref.manual.push({host: host, profile: profile});
+    input.value = '';
+    saveLinkPref();
+    renderLinkSection();
+  }
+
+  function unbindHost(host) {
+    if (!linkPref || !OmegaPopup.addTempRule) return;
+    OmegaPopup.addTempRule(host, '', -1, false);
+    linkPref.manual = linkPref.manual.filter(function(item) {
+      return item.host !== host;
+    });
+    saveLinkPref();
+    renderLinkSection();
+  }
+
+  function bindLinkControls() {
+    var toggle = document.getElementById('js-link-toggle');
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('click', function() {
+        if (!linkPref) linkPref = loadLinkPref();
+        linkPref.wildcard = !isWildcard();
+        saveLinkPref();
+        renderCurrent();
+        renderLinkSection();
+      });
+    }
+    var add = document.getElementById('js-link-add');
+    if (add && !add.dataset.bound) {
+      add.dataset.bound = '1';
+      add.addEventListener('click', bindHost);
+    }
+    var input = document.getElementById('js-link-input');
+    if (input && !input.dataset.bound) {
+      input.dataset.bound = '1';
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') bindHost();
+      });
+    }
   }
 
   function renderCurrent() {
@@ -186,8 +409,7 @@
   function refreshActive() {
     var card = document.getElementById('js-profiles-card');
     if (!card) return;
-    var rule = ownRule();
-    var activeName = rule && rule.profileName;
+    var activeName = currentRuleProfile();
 
     card.querySelectorAll('.om-nav-item[data-profile]').forEach(function(item) {
       item.classList.remove('om-selected');
@@ -221,6 +443,7 @@
       if (OmegaPopup.pageInfo && info.host !== OmegaPopup.pageInfo.host) return;
       OmegaPopup.pageInfo = info;
       renderCurrent();
+      renderLinkSection();
     });
   }
 

@@ -23,10 +23,10 @@ html, body {
 }
 
 body.om-popup {
-  min-width: 300px;
-  padding: 12px;
+  min-width: 312px;
+  padding: 14px;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--base05, #1c1c1e);
   background-color: var(--base01, #f2f2f7);
   -webkit-font-smoothing: antialiased;
@@ -53,7 +53,7 @@ body.om-popup {
 
 .om-section {
   display: block;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .om-section-title {
@@ -80,8 +80,9 @@ body.om-popup {
 
 .om-card {
   background-color: var(--base00, #fff);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
 }
 
 /* When the browser is on the system proxy or an external PAC, no per-site
@@ -91,6 +92,215 @@ body.om-popup {
   font-size: 13px;
   line-height: 1.5;
   color: var(--base03, #8e8e93);
+}
+
+/* Scope card: iOS-style switch for "this host" vs "whole domain", with an
+ * inline field that binds an extra subdomain the moment you press 绑定. */
+
+.om-scope-card {
+  padding: 0;
+}
+
+.om-scope-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.om-scope-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #fff;
+  background-color: var(--primaryColor, #007aff);
+}
+
+.om-scope-icon svg {
+  display: block;
+}
+
+.om-scope-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.om-scope-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--base05, #1c1c1e);
+}
+
+.om-scope-sub {
+  font-size: 11px;
+  color: var(--base03, #8e8e93);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The switch itself: a 44x26 pill with a sliding white knob, iOS shaped and
+ * themed through --primaryColor so it stays legible in every palette. */
+.om-switch {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 13px;
+  background-color: var(--base02, #d1d1d6);
+  cursor: pointer;
+  transition: background-color .18s ease;
+}
+
+.om-switch .om-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+  transition: transform .18s ease;
+}
+
+.om-switch.om-switch-on {
+  background-color: var(--primaryColor, #34c759);
+}
+
+.om-switch.om-switch-on .om-switch-knob {
+  transform: translateX(18px);
+}
+
+.om-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--softAccent, rgba(0, 122, 255, .25));
+}
+
+.om-bind-area {
+  padding: 4px 16px 14px;
+  border-top: 1px solid var(--separatorColor, rgba(60, 60, 67, .13));
+}
+
+.om-bind-head {
+  padding: 10px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--base03, #8e8e93);
+}
+
+.om-bind-row {
+  display: flex;
+  gap: 8px;
+}
+
+.om-bind-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--base02, #d1d1d6);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base01, #f2f2f7);
+}
+
+.om-bind-input:focus {
+  outline: none;
+  border-color: var(--primaryColor, #007aff);
+  background-color: var(--base00, #fff);
+  box-shadow: 0 0 0 3px var(--softAccent, rgba(0, 122, 255, .18));
+}
+
+.om-bind-btn {
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background-color: var(--primaryColor, #007aff);
+  cursor: pointer;
+  transition: opacity .15s ease;
+}
+
+.om-bind-btn:hover {
+  opacity: .88;
+}
+
+.om-bind-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--softAccent, rgba(0, 122, 255, .3));
+}
+
+.om-bind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.om-bind-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 6px 4px 11px;
+  border-radius: 10px;
+  background-color: var(--base01, #f2f2f7);
+}
+
+.om-bind-chip-host {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--base05, #1c1c1e);
+}
+
+.om-bind-chip-rule {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--base03, #8e8e93);
+}
+
+.om-bind-chip-remove {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--base03, #8e8e93);
+  background-color: transparent;
+  cursor: pointer;
+}
+
+.om-bind-chip-remove:hover {
+  color: var(--base05, #1c1c1e);
+  background-color: var(--base02, #e5e5ea);
 }
 
 /* Inset separators drawn at the top of every row but the first: a hidden row

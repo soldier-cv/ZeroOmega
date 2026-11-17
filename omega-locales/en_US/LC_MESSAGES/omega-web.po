@@ -1281,6 +1281,30 @@ msgstr "This browser is using the system proxy, so a profile cannot be set for a
 msgid "popup_currentExternal"
 msgstr "This browser is controlled by an external PAC, so a profile cannot be set for a single site."
 
+msgid "popup_scopeSwitch"
+msgstr "Apply the profile below to the whole domain"
+
+msgid "popup_scopeCurrent"
+msgstr "This host"
+
+msgid "popup_scopeDomain"
+msgstr "Whole domain"
+
+msgid "popup_scopeCurrentHint"
+msgstr "Only $DOMAIN$"
+
+msgid "popup_scopeDomainHint"
+msgstr "All subdomains of $DOMAIN$ (*.$DOMAIN$)"
+
+msgid "popup_bindPlaceholder"
+msgstr "e.g. api.example.com"
+
+msgid "popup_bindAdd"
+msgstr "Bind"
+
+msgid "popup_linkRemove"
+msgstr "Remove"
+
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$ failed resources"
 

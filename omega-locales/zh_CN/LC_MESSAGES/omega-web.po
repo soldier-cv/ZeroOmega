@@ -1147,6 +1147,30 @@ msgstr "当前使用系统代理，无法为单个站点设置情景模式。"
 msgid "popup_currentExternal"
 msgstr "当前由外部 PAC 接管，无法为单个站点设置情景模式。"
 
+msgid "popup_scopeSwitch"
+msgstr "将情景模式应用到整个域名"
+
+msgid "popup_scopeCurrent"
+msgstr "本页"
+
+msgid "popup_scopeDomain"
+msgstr "整个域名"
+
+msgid "popup_scopeCurrentHint"
+msgstr "仅 $DOMAIN$ 本站"
+
+msgid "popup_scopeDomainHint"
+msgstr "$DOMAIN$ 下所有子域（*.$DOMAIN$）"
+
+msgid "popup_bindPlaceholder"
+msgstr "如 postest-api.findfine.com"
+
+msgid "popup_bindAdd"
+msgstr "绑定"
+
+msgid "popup_linkRemove"
+msgstr "移除"
+
 msgid "popup_requestErrorCount"
 msgstr "$COUNT$个资源未加载"
 

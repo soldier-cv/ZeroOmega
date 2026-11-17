@@ -521,6 +521,38 @@
 - **验证（2026-11-17）**：`npm run build` 全绿（coffeelint 全过，jade 仅 2 条既有 warning）；omega-target **16 passing / 0 failing**；popup 六个文件构建产物与源逐字节一致，`_locales` 含新文案、旧文案已移除。Chromium + 构建产物 + chrome API 桩（临时 harness，不入库）核对：新域名播种一条 force set 规则（不刷新）、整域规则场景种子取实际命中的 `direct`（路由不变）、已有自身规则不再播种、点任意行（含重复点击同一行）均发 `refreshAlways: true` 且勾选跟随、系统代理 / 外部 PAC 时列表隐藏并显示说明、顶部卡片已移除。
 - **待实机**：重载扩展后确认（i18n 需重载才生效），尤其是「点 auto switch 会刷新页面」与选项页「默认情景模式」文案。
 
+### R26. 页面规则自动清理冗余项（与默认情景模式相同的规则） — 状态：**构建与单测通过，待实机确认**（2026-11-17）
+
+- **背景**：R25 后每打开一个新站点的 popup 就播种一条规则，长期会积累大量记录。华总问「是否 30 天没使用就清理」。
+- **关键约束**：PAC 由浏览器执行，扩展看不到某条规则这次是否真的用于路由（`webRequest` 监控默认关闭）。删除一条**非默认**规则会让该站点静默回落到默认——正是要避免的「擅自切换」。而删除一条 profileName 等于当前默认情景模式的规则，PAC 回落后结果完全相同，界面勾选也不变（原本就勾默认）。
+- **已确认决策（D29）**：采用推荐方案——**只清与当前默认相同的规则**，不做「30 天未访问」的时间戳方案（那需要记录最后访问时间，且会真的改变被清理站点的路由）。
+- **实现（2026-11-17）**：
+  - `omega-target/src/options.coffee`：新增 `pruneDefaultTempRules()`，返回删除条数；跳过 system / 外部 PAC（无 `currentProfileName` 或 `_isSystem`）；只删 `profileName == _currentProfileName` 的规则，其余用 `replaceTempRules()` 一次性替换（一次 PAC 更新）。
+  - `omega-target/test/temp_rules.coffee`：新增 3 例（只删默认 / system 时不动 / 无匹配时返回 0）。
+  - `omega-target-chromium-extension/src/module/options_backup.coffee`：新增 `omega.tempRulesCleanup` 闹钟（每 24h，仅缺失时创建）；启动拉取后与闹钟触发都调 `pruneDefaultRules()`；清理经 `replaceTempRules` → `onTempRulesChanged` → 既有 WebDAV 三方合并同步推送到其它设备。
+- **注意**：站点被清理后下次打开 popup 会按默认重新播种一条（界面无差异），因此可能产生一次冗余写；规则文件仍保持有界。
+- **验证（2026-11-17）**：`npm run build` 全绿（coffeelint 全过，jade 仅 2 条既有 warning）；omega-target **19 passing / 0 failing**（新增 3 例）；构建产物含 `pruneDefaultTempRules` 与 `omega.tempRulesCleanup` 闹钟创建 / 分发。
+- **待实机**：重载扩展后确认启动清理与 24h 闹钟建立；是否发 tag 待华总指令。
+
+### R27. popup「作用范围」：本页 / 整域通配符 + 立即绑定子域 + 样式重做 — 状态：**构建与浏览器校验通过，待实机确认**（2026-11-17）
+
+- **背景**：华总场景是页面 `postest.findfine.com` + API `postest-api.findfine.com` 要一起在「本地 FIDDLER / 直连」之间切。第一版做了「同域联动列表」（自动列出兄弟 host + 手动添加），但华总反馈：① 直接用回原设计的整域通配符 `*.findfine.com` 更简单，只要「本页 / 整域」两种；②「未联动 / 已联动」文字按钮不符合习惯，要做成真正的**开关**；③ 添加子域要**添加即绑定**，不能再点第二次；④ 样式丑，可整体重构，参考 Google M3 / iOS。
+- **已确认决策（D30，修订）**：`LINK_PREF` 的 `enabled` 迁移为 `wildcard`，作为 **iOS 风格开关**持久化到 `localStorage`（按主域）。开关只决定下一次点情景模式写到哪里：关 = 当前 host，开 = 主域 key（生成 `*.findfine.com` 规则）。开关本身不隐式写/删规则。额外绑定子域的输入框在点击「绑定」时**立即**用当前生效 profile 写一条 host 规则并生成chip；chip 的 × 立即删除该规则。
+- **实现（2026-11-17）**：
+  - `omega-web/src/popup/index.html`：`#js-link-section` 重写为「Scope」卡片 = 图标 + 状态标题/副标题 + `.om-switch` 开关 + 绑定区（输入框 + 绑定按钮 + chip 列表）+ 整域说明。
+  - `omega-web/src/popup/js/profiles.js`：删掉上一版的自动发现 / `getTempRules` / `linkRules` / `excluded`；新增 `wildcard` 偏好（兼容旧 `enabled`）、`isWildcard` / `currentRuleProfile` / `bindHost` / `unbindHost`；`linkedTargets()` 返回 `[info.domain]`（整域）或 `[info.host]`；`writePageRoute` 按模式写 `tempRuleProfileName` / `tempRuleHostProfileName`；`refreshActive` 用 `currentRuleProfile()` 勾选，使整域规则也能显示勾选；播种改为「无任何匹配规则时」才写当前 host；URL 粘贴会去掉协议和路径。
+  - `omega-web/src/popup/css/index.css`：整体调得更 iOS/M3（容器 14px 圆角 + 轻阴影、作用域卡片、44×26 药丸开关带滑块、绑定输入框/chip、说明文字）；移除上一版联动样式。
+  - i18n（`en_US` + `zh_CN`）：删 `popup_linkOn/Off/None/AddPlaceholder/Add/Help/Title`，新增 `popup_scopeTitle` / `popup_scopeSwitch` / `popup_scopeCurrent` / `popup_scopeCurrentHint` / `popup_scopeDomain` / `popup_scopeDomainHint` / `popup_wildcardNote` / `popup_bindTitle` / `popup_bindPlaceholder` / `popup_bindAdd` / `popup_bindHelp`，保留 `popup_linkRemove`。
+  - 临时 `[ZODIAG]` 日志已全部移除。
+- **验证（2026-11-17）**：`npm run build` 全绿；Chromium + 构建产物 + chrome API 桩（临时 harness，不入库）核对：默认「本页」开关关、绑定区可见；点 FIDDLER 写 `postest.findfine.com`；开关打开后副标题变整域说明、绑定区隐藏、点 VPN 写 `findfine.com`；关回后填 `postest-api.findfine.com` 点绑定立即写规则（refresh=false）并生成 chip；偏好持久化到 `localStorage`。截图逐项核对新样式。
+- **实机反馈后的修订（2026-11-17）**：
+  - ① **切模式后勾选不跟随**：整域模式下旧的本机 host 规则仍在，PAC「首条命中」让本机 host 规则遮蔽了整域规则；而点击后 `refreshPageInfo()` 与页面 reload 竞态，读回旧 profile。修法：`linkedTargets()` 在整域模式写**两条**规则（主域 key + 当前 host，同 profile），消除遮蔽；去掉点击后的 `refreshPageInfo()`，勾选直接取刚写入的本地状态。
+  - ② **作用范围看不清 / 概念混淆**：一度把卡片移到列表上方并加说明，随后华总指出它「不常改、应往下放且描述太多」，最终定稿为**列表下方 + 极简**（见「布局再调整」）。
+  - ③ **图标错乱**：`glyphicon-globe` 与自定义 `.om-scope-icon` 样式冲突，改为内联 SVG 地球图标（不依赖图标字体）。
+- **验证（修订后）**：`npm run build` 全绿；浏览器 harness 复现「整域模式 + 残留 host 规则」场景，点 FIDDLER 后写入 `findfine.com` 与 `postest.findfine.com` 两条规则且勾选从 auto switch 跟到 FIDDLER；本页模式绑定区可见、点选只写当前 host；截图核对作用域卡片在列表上方、SVG 图标清晰、两种开关态正常。
+- **布局再调整（2026-11-17）**：华总指出作用范围「不常改，应往下放」且描述太多。作用范围卡片**移回情景模式列表下方、选项行上方**，删掉标题、提示行、整域说明行与绑定区标题，只留图标 + 状态/副标题 + 开关 + 输入框/绑定按钮 + chip；相关 i18n 与 CSS 一并清理。浏览器 harness 核对顺序（列表 → 作用范围 → 选项）、无多余说明节点、SVG 图标与勾选正常。
+- **待实机**：重载扩展后确认（i18n 需重载才生效）。
+
 ## 4. 项目基础架构
 
 ### 4.1 模块（monorepo，无 git submodule）
@@ -566,7 +598,7 @@ cd omega-target && npm test
 
 - **Profile 模型**：`omega-pac` 把 profile 编译为 PAC 脚本或固定配置，target 侧 `proxyImpl` 应用到浏览器。
 - **临时规则（页面规则）**：隐藏的 `_tempProfile`（SwitchProfile）位于 PAC 第一层，按域名层级排序（子域在前，首条命中优先）。**持久化**在扩展自身状态区 `state.tempRules`（`{domain: profileName}`，经 idb-keyval 落盘，**浏览器重启后仍在**，直到手动撤销），在 `options.ready` 内恢复；3.6.4 及之前的 `chrome.storage.session` 旧数据首次启动时迁移。入口有 popup（当前站点一址一规则，打开时按默认 / 实际命中规则播种）、请求信息详情、网络监测页、临时规则管理器。`getPageInfo()` 为 popup 提供 `domain / host / subdomain / tempRuleProfileName（主域级）/ tempRuleHostProfileName（子域级）/ tempRuleMatch（PAC 实际命中的那条及其 key，系统代理为全局时为 null）`。主域按 `omega-pac/src/public_suffix_rules.json`（仓库内置的 PSL 全表，`tools/update_public_suffix.js` 刷新）计算，不用 tldjs 自带的旧表。
-- **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时、**每 30 秒**（`omega.tempRulesPullV2` 闹钟，带 `If-None-Match`，304 时零传输）、popup 打开与窗口聚焦时各拉一次（后两者 30 秒内已同步则跳过）。失败按指数退避（30s→5min），本地改动 / 保存设置 / 手动同步不受退避限制。详见 R22 / D25。
+- **页面规则同步**：开启 WebDAV 且勾选「同步页面规则」（默认开）时，规则存在 `zeroomega/zeroomega-temprules.json`（与整体 options 备份分开）。每次修改 1s 防抖后「拉取 → 与 `state.tempRulesBase` 按站点三方合并 → 上传（强 ETag 时 `If-Match`，412 重试）」；background 启动时、**每 30 秒**（`omega.tempRulesPullV2` 闹钟，带 `If-None-Match`，304 时零传输）、popup 打开与窗口聚焦时各拉一次（后两者 30 秒内已同步则跳过）。失败按指数退避（30s→5min），本地改动 / 保存设置 / 手动同步不受退避限制。另有一个 24h 闹钟（`omega.tempRulesCleanup`，启动时也跑一次）删除 profileName 等于当前默认情景模式的冗余规则，走同一条同步链路；非默认规则一律保留。详见 R22 / D25 / R26 / D29。
 - **整体 options 备份**：WebDAV 上传到 `zeroomega/zeroomega-<commitId>.json` + `zeroomega-commit.txt`，**保留最近 3 份**（按 `getlastmodified` 裁剪；列不出一律不删）。**首次连接一个已有备份的服务器时只读不写**：记 `state.optionsBackup.adoptPending`、暂停自动备份，设置页提示由用户选「从备份恢复」或「立即备份」；服务器为空时首次上传即基线；恢复或显式备份记录 `state.optionsBackup.syncedUri` 后自动备份（2s 防抖）恢复。详见 R23 / R24 / D26 / D27。
 - **两套 popup**：默认 `popup-iframe.html` 内嵌 `popup/index.html`（新版原生 JS；无顶部站点卡、无「全局 / 本页」切换，只有一条「`<host>` 的当前情景模式」标题 + 一套情景模式列表 + 「选项」行）。**一址一「当前」规则**：每个完整 hostname 一条持久化规则；新域名首次打开时按「实际命中的规则（更宽的整域规则）→ 否则默认情景模式」播种（force set、不刷新页面）。点任意行（含已勾选行）= 写该 host 规则 + **强制刷新页面**（`refreshAlways`，即使路由文本不变），重复点击不再无反应；列表行勾选即当前规则。系统代理 / 外部 PAC 时列表隐藏、显示说明；系统代理行、「添加条件」行、改 switch 默认结果的 chevron、模式相关快捷键均已移除。选项页的「默认情景模式」（原「初始情景模式」，`-startupProfileName`）只作新域名种子，popup 不再应用全局 profile；旧的整域规则不再显示也不再创建，但仍在存储里被 host 规则遮蔽。「请求信息」表单仍走 Angular 版 `popup.html`（`popup.jade` + `popup.coffee`）。
 - **更新检查**：background 的 `module/update_check.coffee` 读 R15 端点 `version.json`，打开浏览器时（距上次 >30 分钟）与每 6 小时（`omega.updateCheck` 闹钟）各查一次；发现新版本弹一次系统通知（每个版本一次），点击打开设置页「关于」。「关于」页的「更新」分组显示状态、命令原文与「复制更新命令 / 重载扩展 / 立即检查」。未打包扩展不能自更新，所以安装仍是 PowerShell 命令 + `chrome.runtime.reload()`。popup 里不再有更新入口。
@@ -605,3 +637,5 @@ cd omega-target && npm test
 | D26 | WebDAV 备份**保留最近 3 个选项文件**（`BACKUP_VERSIONS = 3`），上传成功后按 `getlastmodified` 从新到旧裁剪；**没有可用 mtime 的文件永不删除**、**列目录失败就整轮跳过裁剪**；设置页给「备份版本」下拉（默认最新），恢复可用任一份，id 走白名单校验。取代 D9 的「单份最新」 | 继续单槽（上传后删旧文件）；保留全部历史靠人工清理；把「覆盖保护」做成写入前确认 | 事故实证：某台默认配置的设备上传一次就把唯一的好备份 DELETE 掉，恢复端忠实照搬，于是「恢复出默认配置」——问题在上传侧的单槽策略，不在恢复。3 份足以覆盖「刚发现坏了」的场景，又不至于让目录无限膨胀；用 mtime 排序不依赖设备时钟；宁可多留文件也不删错，因为 `getlastmodified` 是唯一的排序依据。下拉默认最新，是因为日常操作仍是「恢复最近一次」，看历史是偶发需求。本次**未做**：服务端锁 / 覆盖保护 / 「恢复到缺少 profile 的 options 会清掉引用它的页面规则」 |
 | D27 | 首次连接一个**已有备份**的服务器时**只读不写**：记 `adoptPending` 并暂停自动备份，设置页提示，由用户选「从备份恢复」或「立即备份」；服务器为空则首次上传即基线；恢复 / 显式备份记录 `syncedUri` 后自动备份恢复 | 首次配置自动从服务器恢复；维持「有变更就推」只靠 3 份历史兜底 | 华总指出「首次配置应该先从服务上拉取，而不是拿本地的去推送覆盖」。自动**推**已知会造成事故（默认配置覆盖好备份）；自动**拉**同样危险——事故里服务器那份正是坏的，会自动毁掉本机好配置。提示 + 两条显式出口对两个方向都安全，且不引入新的静默数据丢失；`syncedUri` 按 URI 记，换服务器会重新走首次检查 |
 | D28 | popup **去掉模式概念**：每个站点一条持久化的「当前」规则（force set 写入），选项页的「默认情景模式」（原启动情景模式）只作新域名的种子；删除顶部站点卡 + 模式胶囊 + 整域提示行；点任意情景行（含已勾选项）= 写规则 + **强制刷新页面**；系统代理 / 外部 PAC 时只显示说明 | 保留「全局 / 本页」胶囊并把点击已选项当幂等无操作 / 仅在规则变化时刷新 / 继续展示整域规则提示行 | 模式与规则分离正是 BUG ①（整域提示）与②（点已选项被重算成全局）的来源；force set 早退 + 「路由未变不刷新」又让「点 auto switch 没反应」。合并成单一「当前」概念后，高亮与路由天然一致、无需撤销按钮；强制刷新让每次点击都有确定反馈。默认只种子新域名，避免改默认把已有站点冲掉；popup 不再改全局，全局收敛到选项页配置 |
+| D29 | 页面规则清理只删 **profileName 等于当前默认情景模式** 的那些，由 24h 闹钟 + 启动拉取后触发，走既有 WebDAV 三方合并同步 | 按「30 天未访问」清理（需要记录最后访问时间，且非默认规则被删会静默改变该站点路由）/ 完全不清理 / 只提供手动按钮 | PAC 由浏览器执行，扩展无法直接观测规则是否真的用于路由；「与默认相同」的规则删掉后回落结果完全一致，零可见影响，能消掉播种带来的绝大多数记录。非默认规则是用户显式选择，保留；不做时间戳，避免新状态与同步格式变更，也不引入「明明还在用却被清掉」的风险 |
+| D30 | popup 的「作用范围」做成 **iOS 风格开关**：关 = 本页（写 host 规则），开 = 整域（写主域 key → `*.findfine.com`）；额外子域输入框**添加即绑定**（立即写规则、生成 chip，× 即删规则）。开关只决定下一次点击写哪里，不隐式改规则；样式按 M3 / iOS 重做（圆角卡片、药丸开关、chip） | 自动发现并批量写兄弟 host 的「同域联动列表」（华总嫌复杂且文字按钮不像开关）/ 只写 `*.findfine.com` 不支持本页 / 在选项页配组 | 华总明确指出原设计的整域通配符更简单：「两种，一种选择当前，一种应用到通配符」；文字状态按钮不符合习惯，必须是真正的开关；添加子域必须立即生效。开关不隐式写/删规则，避免切换范围时改变路由；批量改写其它 host 的风险也一并消除，整域是显式且用户可见的选择 |

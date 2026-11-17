@@ -29,10 +29,20 @@ steps:
       HTTPS_PROXY: http://100.64.0.88:7897
       http_proxy: http://100.64.0.88:7897
       https_proxy: http://100.64.0.88:7897
-      NO_PROXY: localhost,127.0.0.1,100.64.0.0/10
+      # npm registry 与 USTC apk 源直连（国内源绕过代理，代理只留给 GitHub/bower）
+      NO_PROXY: localhost,127.0.0.1,100.64.0.0/10,mirrors.ustc.edu.cn,registry.npmmirror.com
+      no_proxy: localhost,127.0.0.1,100.64.0.0/10,mirrors.ustc.edu.cn,registry.npmmirror.com
+      NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
+    volumes:
+      # 依赖缓存跨次构建复用：npm / bower / apk 各一份（曾实测无缓存时 build 步 20 分钟里编译只占 11 秒）
+      - /data/woodpecker/cache/zeroomega/npm:/root/.npm
+      - /data/woodpecker/cache/zeroomega/bower:/root/.cache/bower
+      - /data/woodpecker/cache/zeroomega/apk:/var/cache/apk
     commands:
       # bower 走 git 拉 GitHub 依赖；node-gyp 兜底需要 python3/make/g++
-      - apk add --no-cache git python3 make g++ >/dev/null
+      - set -eu
+      - sed -i 's#https://dl-cdn.alpinelinux.org#https://mirrors.ustc.edu.cn#' /etc/apk/repositories
+      - apk add git python3 make g++ >/dev/null
       - cd omega-build
       - npm run deps
       - npm run build

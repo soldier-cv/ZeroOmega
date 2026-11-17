@@ -10,7 +10,12 @@ OPTION_FILE_SUFFIX = '.json'
 TEMP_RULES_FILENAME = 'zeroomega-temprules.json'
 TEMP_RULES_PULL_ALARM = 'omega.tempRulesPullV2'
 LEGACY_TEMP_RULES_PULL_ALARM = 'omega.tempRulesPull'
+TEMP_RULES_CLEANUP_ALARM = 'omega.tempRulesCleanup'
 TEMP_RULES_PULL_MINUTES = 0.5
+# A page rule naming the current default is redundant: dropping it leaves the
+# PAC result unchanged. Clean those once a day so browsing does not accumulate
+# one rule per host forever. Newly opened sites seed one again, harmlessly.
+TEMP_RULES_CLEANUP_MINUTES = 24 * 60
 TEMP_RULES_PULL_MIN_MS = TEMP_RULES_PULL_MINUTES * 60 * 1000
 TEMP_RULES_MAX_BACKOFF_MS = 5 * 60 * 1000
 TEMP_RULES_PUSH_DEBOUNCE = 1000
@@ -424,12 +429,27 @@ class OptionsBackup
       return if alarm
       chrome.alarms.create(TEMP_RULES_PULL_ALARM,
         periodInMinutes: TEMP_RULES_PULL_MINUTES)
+    chrome.alarms.get TEMP_RULES_CLEANUP_ALARM, (alarm) ->
+      return if alarm
+      chrome.alarms.create(TEMP_RULES_CLEANUP_ALARM,
+        periodInMinutes: TEMP_RULES_CLEANUP_MINUTES)
     chrome.alarms.onAlarm.addListener (alarm) =>
-      return unless alarm.name == TEMP_RULES_PULL_ALARM
-      @syncTempRules().catch(-> return)
+      if alarm.name == TEMP_RULES_PULL_ALARM
+        @syncTempRules().catch(-> return)
+      else if alarm.name == TEMP_RULES_CLEANUP_ALARM
+        @pruneDefaultRules()
     # Startup pull: whatever other devices changed while this browser was
-    # closed is in place before the first page is routed by an old rule.
-    @options.ready.then(=> @syncTempRules(true)).catch(-> return)
+    # closed is in place before the first page is routed by an old rule. Clean
+    # redundant rules afterwards so a browser left open for days still stays
+    # bounded, and the write rides the same sync path as a manual change.
+    @options.ready.then(=> @syncTempRules(true)).then(=> @pruneDefaultRules())
+      .catch(-> return)
+
+  pruneDefaultRules: ->
+    @options.pruneDefaultTempRules().then((removed) ->
+      if removed
+        console.log('ZeroOmega: removed ' + removed + ' default page rules')
+    )
 
   scheduleAutoBackup: ->
     return if @_backupInProgress or @_restoreInProgress

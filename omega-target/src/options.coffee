@@ -884,6 +884,27 @@ class Options
     @applyProfile(@_currentProfileName)
 
   ###*
+  # Drop page rules that name the current default profile. Removing them cannot
+  # change routing: the PAC falls through to that same profile. Rules naming any
+  # other profile are deliberate overrides and are left alone.
+  # @returns {Promise<number>} How many rules were removed.
+  ###
+  pruneDefaultTempRules: ->
+    current = @_currentProfileName
+    return Promise.resolve(0) if not current or current == 'system'
+    return Promise.resolve(0) if @_isSystem
+    rules = @exportTempRules()
+    kept = {}
+    removed = 0
+    for own domain, profileName of rules
+      if profileName == current
+        removed += 1
+      else
+        kept[domain] = profileName
+    return Promise.resolve(0) unless removed
+    @replaceTempRules(kept).return(removed)
+
+  ###*
   # Called when temp rules change outside addTempRule/replaceTempRules (a
   # profile rename, or dropping rules for a profile that was deleted), so a
   # target can persist and sync them.

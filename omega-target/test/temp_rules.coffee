@@ -184,6 +184,54 @@ describe 'Options#replaceTempRules', ->
     .then ->
       options.queryTempRule('new.com').should.equal 'proxy'
 
+describe 'Options#pruneDefaultTempRules', ->
+  createOptions = ->
+    log = {method: sinon.stub(), error: sinon.stub()}
+    options = new Options(null, null, log)
+    options._options =
+      '+switch':
+        name: 'switch'
+        profileType: 'SwitchProfile'
+        defaultProfileName: 'direct'
+        rules: []
+      '+proxy':
+        name: 'proxy'
+        profileType: 'FixedProfile'
+        proxyForHttp: {scheme: 'http', host: '127.0.0.1', port: 8888}
+    options._currentProfileName = 'switch'
+    options.applyProfile = sinon.stub().returns(Promise.resolve())
+    options
+
+  it 'should drop only rules that name the current default profile', ->
+    options = createOptions()
+    options.replaceTempRules(
+      'a.com': 'switch'
+      'b.com': 'proxy'
+      'c.com': 'switch'
+    ).then ->
+      options.pruneDefaultTempRules()
+    .then (removed) ->
+      removed.should.equal 2
+      options.exportTempRules().should.eql {'b.com': 'proxy'}
+
+  it 'should keep rules when the default cannot host page rules', ->
+    options = createOptions()
+    options._isSystem = true
+    options.replaceTempRules({'a.com': 'switch'}).then ->
+      options.pruneDefaultTempRules()
+    .then (removed) ->
+      removed.should.equal 0
+      options.exportTempRules().should.eql {'a.com': 'switch'}
+      options.applyProfile.should.have.been.calledOnce
+
+  it 'should report zero when no rule matches the default', ->
+    options = createOptions()
+    options.replaceTempRules({'a.com': 'proxy'}).then ->
+      options.pruneDefaultTempRules()
+    .then (removed) ->
+      removed.should.equal 0
+      options.exportTempRules().should.eql {'a.com': 'proxy'}
+
 describe 'Options#profile references and temp rules', ->
   createOptions = (opts = {}) ->
     log = {method: sinon.stub(), error: sinon.stub()}

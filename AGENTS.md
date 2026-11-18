@@ -47,7 +47,7 @@
 13. **打 tag 前必须核对（硬性）**：tag 指向的提交必须同时满足三条，否则打错了流水线会发出旧版本（v3.7.2 曾把 tag 打在纯文档提交上，分发产物是 3.7.1）：
     - `git show <commit>:omega-target-chromium-extension/overlay/manifest.json` 的 `version` 等于 tag 名去掉 `v`；
     - `CHANGELOG.md` 有该版本段落；
-    - `.woodpecker.yml` 是该提交自己的版本（Woodpecker 只读 tag 指向提交的配置，打在旧提交上会用旧的 CI 配置构建）。
+    - `.github/workflows/release.yml` 是该提交自己的版本（GitHub Actions 只读 tag 指向提交的 workflow，打在旧提交上会用旧的 CI 配置构建；流水线另有「包内版本 == tag」与发布说明段落两道复核）。
     tag 打在合并提交上时，须确认发布提交与 CI 改动都在其祖先里。
 
 ## 3. 需求台账（Requirements Ledger）
@@ -81,6 +81,7 @@ R24. WebDAV 首次连接只读不上传（默认配置不再覆盖服务器备�
 R25. popup 去掉「全局 / 本页」切换：一址一「当前」规则 + 选项里的「默认」 — 状态：构建与浏览器校验通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r25
 R26. 页面规则自动清理与默认情景模式相同的冗余项 — 状态：构建与单测通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r26
 R27. popup「作用范围」开关（本页 / 整域通配符）+ 绑定子域添加即绑定 + 样式重做 — 状态：构建与浏览器校验通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r27
+R28. GitHub Actions 发版（GitHub + Gitee 双 Release）+ 更新检查改读 Releases API（Gitee 优先、GitHub 降级） — 状态：代码完成，构建与逻辑校验通过，待实机确认（2026-11-18）→ 详见 docs/requirements-log.md#r28
 
 ## 4. 项目基础架构
 
@@ -139,16 +140,13 @@ cd omega-target && npm test
   点任意行（含已勾选）写规则并 `refreshAlways` 强制刷新。列表下方有「作用范围」开关（关 = 当前 host，开 = 主域 key → `*.domain`；整域时同时写 host 与 domain 两条同 profile 规则以消除遮蔽），按主域持久化到 `localStorage`；输入框绑定同域子域「添加即生效」并生成 chip（× 即删规则）。系统代理 / 外部 PAC 时只显示说明。
   「请求信息」表单仍走 Angular `popup.html`。`.om-nav` 与 `js-*` id 是键盘导航根，行结构保持 `.om-nav-item > a`。
 - **其它刷新**：popup 点情景行以外，只在活动页实际代理结果变化时刷新；任一侧未知，或 URL 与活动 tab 不一致，则保守刷新。
-- **更新检查**：background 读 `version.json`；启动时距上次超过 30 分钟，以及每 6 小时各查一次。每个版本只通知一次，点击打开设置页「关于」（复制命令 / 重载扩展 / 立即检查）。
-  未打包扩展不能改写自身文件，不做静默自更新。popup 无更新入口。
-- **版本查询接口**：`/res/zeroomega/version.json`（UTF-8 无 BOM、结尾一个换行）与 `version.txt`（一行 `vX.Y.Z`）。版本只取 zip 内 `manifest.json`，脚本不提供 `--version`；同版本沿用 `updated_at`；URL 全为相对路径。
-  字段顺序固定：`package` / `version` / `built_at` / `updated_at` / `channel` / `source` / `release_notes` / `downloads.{chromium,firefox}.{url,sha256}` / `update.{command,guide}`。
-  sha256 用实算值，与记录不一致则仍写入但退出码 2；包缺失、zip 损坏、版本非法或 notes 缺失则不写文件并退出 1。publish 在刷新分发包清单后跑 `tools/ci/write_version_endpoint.py`。
+- **更新检查**：background 读 GitHub / Gitee 的 Releases API（Gitee 主通道 → GitHub API 复核/降级 → Releases 页面兜底）；启动时距上次超过 30 分钟，以及每 6 小时各查一次。Gitee 说"已是最新"时用 3 秒短超时向 GitHub 复核，探测失败维持原结论；附件缺失报明确错误、不当成"无新版"。每个版本只通知一次，点击打开设置页「关于」（显示来源 / 复制命令 / 重载扩展 / 立即检查）。未打包扩展不能改写自身文件，不做静默自更新。popup 无更新入口。
+- **发版与分发**：GitHub Actions（`.github/workflows/release.yml`）在 `v*` tag 上构建，校验「tag == 仓库 manifest == 包内 manifest」与 CHANGELOG 段落，产出 `chromium-release.zip` / `firefox-release.zip` + sha256，发布到 GitHub Release，并同步同一 Release（含 4 个附件）到 Gitee 镜像 `huaxudong/ZeroOmega`（`GITEE_TOKEN` Secret，失败只标 `::error::` 不阻断）。另有 `sync-gitee.yml` 在 `custom_main` / `master` 推送时同步源码分支。原 Woodpecker 内网分发已停用（`.woodpecker.yml` 删除），`tools/ci/` 下三个脚本为历史遗留。
 - **请求监控**（默认关闭）：`webRequest` 统计每标签失败请求，popup 顶部「N 资源未加载」；详情模式可按 host 加条件或临时条件。
 
 ## 5. 决策日志（Decision Log）
 
-> 只留当前仍约束行为的决策，每条一行。原文，以及已被取代的 D6、D7、D9、D10、D11、D15、D16、D17、D22 等，在 `docs/requirements-log.md`。
+> 只留当前仍约束行为的决策，每条一行。原文，以及已被取代的 D6、D7、D9、D10、D11、D15、D16、D17、D18、D22 等，在 `docs/requirements-log.md`。
 
 | # | 决策 | 备选方案 | 理由 |
 |---|---|---|---|
@@ -174,3 +172,6 @@ cd omega-target && npm test
 | D29 | 只清理 profileName 等于当前默认情景模式的页面规则（24h 闹钟 + 启动时），走既有 WebDAV 同步；非默认规则保留 | 按「30 天未访问」清理 / 只手动清 | 与默认相同的规则删掉后路由与勾选都不变，零可见影响；时间戳方案需新状态且有「还在用却被清」的风险 |
 | D30 | popup 作用范围做成 iOS 风格开关：关 = 当前 host，开 = 主域 key（`*.domain`，同时写 host 与 domain 两条同 profile 规则）；绑定子域添加即生效 + chip × 即删规则；卡片放列表下方、描述极简 | 同域联动列表 / 只有整域 / 选项页配组 | 整域通配符更简单，开关比文字按钮符合习惯，添加即绑定少一次点击；整域同时写 host 消除遮蔽导致的勾选不跟随 |
 | D31 | 开发、提交、发版 tag 全在 `custom_main`；`master` 只作上游基线（v3.5.2），不在其上提交或打 tag | 发版切 master 打 tag / 双分支并行开发 | 单一工作分支让历史与 tag 对得上；master 保持与上游一致，便于将来按需比对 |
+| D32 | 发版统一走 GitHub Actions，同时投递 GitHub Release 与 Gitee 镜像 Release（`huaxudong/ZeroOmega`，4 个附件）；停用 Woodpecker 内网分发 | 保留 Woodpecker / 只发 GitHub | 开源项目以 GitHub 为主；Gitee 供国内高速下载；镜像失败 continue-on-error 不阻断 GitHub 发版。tag、仓库 manifest、包内 manifest 三处版本必须一致，分叉即失败 |
+| D33 | 更新检查读 Releases API：Gitee 主通道 → GitHub API（复核/降级）→ Releases 页面兜底；只放行官方域名与 `.zip` 资产；按浏览器选 chromium / firefox 包 | 只读单一静态 version.json / 信任响应里的任意下载 URL | Gitee 镜像会落后，短超时复核可自愈；附件缺失必须报错而非"无新版"；远端 URL 是安全边界，不能让伪造响应把命令指向任意程序 |
+| D34 | 更新检查保留 background 定时（启动 + 每 6h）+ 每版本一次通知 + 设置页「关于」UI；未打包扩展仍用复制命令 + 重载，不静默自更新 | 改用自动下载安装 / 把入口放回 popup | 扩展无法改写自身文件；更新是低频事，popup 空间宝贵 |

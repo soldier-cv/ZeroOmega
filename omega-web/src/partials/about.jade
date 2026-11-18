@@ -67,6 +67,9 @@ section.settings-group(ng-if='update')
       span.glyphicon.glyphicon-refresh
       = ' '
       | {{'options_updateCheckNow' | tr}}
+  p(ng-if='update.source')
+    | {{'options_updateSource' | tr}}
+    | {{update.source}}
   p.help-block
     span.glyphicon.glyphicon-time
     = ' '

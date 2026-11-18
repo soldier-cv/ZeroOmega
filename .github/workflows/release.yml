@@ -1,45 +1,237 @@
 name: Build and Release
 
+# 仅 tag v* 或手动触发；普通 push 不发版。
+# 发版产物同时投递到 GitHub Release 与 Gitee 镜像 Release（国内高速通道）。
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      # 版本号以 tag 为权威，但必须与仓库里已提交的 manifest.json 一致
+      #（AGENTS.md §2.13：打 tag 前先递增版本、写 CHANGELOG）。
+      # 两处分叉时宁可发版失败，也不能发出一个"tag 说 v3.7.3、包里却是 3.7.2"的包——
+      # 客户端的更新检查读的就是包内版本，分叉会让所有用户永远停在旧版。
+      - name: Resolve and verify version
+        id: ver
+        run: |
+          set -eu
+          MANIFEST='omega-target-chromium-extension/overlay/manifest.json'
+          CURRENT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$MANIFEST")
+          echo "manifest version: $CURRENT"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="${{ github.ref_name }}"
+            VER=$(printf '%s' "$TAG" | sed -E 's/^[vV]//')
+            if ! printf '%s' "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::标签 '$TAG' 不是 v<major>.<minor>.<patch> 形式，拒绝发版"
+              exit 1
+            fi
+            if [ "$VER" != "$CURRENT" ]; then
+              echo "::error::tag 版本 $VER 与 manifest.json 版本 $CURRENT 不一致；请按 AGENTS.md §2.13 先对齐再打 tag"
+              exit 1
+            fi
+          else
+            VER="$CURRENT"
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies, build, release
-        working-directory: 'omega-build'
+        working-directory: omega-build
         run: |
           npm run deps
           npm run dev
           npm run build
           npm run release
 
-      - name: Generate SHA-256 checksum
+      # 再读一次**包内**版本：构建链若漏拷 manifest 或用了旧缓存，上一关的仓库版本
+      # 检查是发现不了的，而客户端正是拿包内版本和远端 tag 比。
+      - name: Verify packaged version
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          sha256sum dist/chromium-release.zip > dist/chromium-release.zip.sha256
-          sha256sum dist/firefox-release.zip > dist/firefox-release.zip.sha256
+          set -eu
+          python3 - "$VERSION" <<'PY'
+          import json, sys, zipfile
+          ver = sys.argv[1]
+          for name in ('chromium', 'firefox'):
+              path = 'dist/%s-release.zip' % name
+              with zipfile.ZipFile(path) as zf:
+                  got = json.loads(zf.read('manifest.json').decode('utf-8'))['version']
+              if str(got).lstrip('vV') != ver:
+                  raise SystemExit('%s 内版本 %s 与发布版本 %s 不一致' % (path, got, ver))
+          print('packaged version OK:', ver)
+          PY
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum chromium-release.zip > chromium-release.zip.sha256
+          sha256sum firefox-release.zip > firefox-release.zip.sha256
+
+      # 发布说明取 CHANGELOG.md 对应版本段落；没有段落（首发或从 [未发布] 归档前）
+      # 才回退到最近一次提交信息。Gitee 用纯说明，GitHub 另加下载表与更新方法。
+      - name: Resolve release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -eu
+          python3 - "$VERSION" <<'PY'
+          import os, re, subprocess, sys
+          ver = sys.argv[1]
+          lines = open('CHANGELOG.md', encoding='utf-8').read().splitlines()
+          buf, active = [], False
+          for line in lines:
+              s = line.strip()
+              if re.match(r'^##\s+\[?v?' + re.escape(ver) + r'\]?(?:\s|$)', s):
+                  active = True
+                  continue
+              if active:
+                  if s.startswith('## '):
+                      break
+                  buf.append(line)
+          notes = '\n'.join(buf).strip()
+          if not notes:
+              notes = subprocess.check_output(
+                  ['git', 'log', '-1', '--pretty=%B'], text=True).strip()
+          temp = os.environ['RUNNER_TEMP']
+          with open(os.path.join(temp, 'gitee_body.md'), 'w', encoding='utf-8') as f:
+              f.write(notes)
+          with open(os.path.join(temp, 'release_body.md'), 'w', encoding='utf-8') as f:
+              f.write('\n'.join([
+                  '## 📝 更新内容', '', notes, '',
+                  '## 📦 下载', '',
+                  '| 文件 | 说明 |', '| --- | --- |',
+                  '| `chromium-release.zip` | Chromium 系浏览器（Chrome / Edge 等）扩展包 |',
+                  '| `firefox-release.zip` | Firefox 扩展包 |', '',
+                  '国内用户可在 [Gitee 镜像 Releases](https://gitee.com/huaxudong/ZeroOmega/releases) 高速下载。', '',
+                  '## 🔄 更新方法', '',
+                  '扩展内自动检查更新（Gitee 优先、GitHub 降级），也可在设置页「关于」点「立即检查」。',
+                  '未打包扩展不能自更新：按提示复制更新命令到 PowerShell 执行，再点「重载扩展」。',
+              ]))
+          print('notes length: %d' % len(notes))
+          PY
+          echo "body_file=$RUNNER_TEMP/release_body.md" >> "$GITHUB_OUTPUT"
+          echo "gitee_body_file=$RUNNER_TEMP/gitee_body.md" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             dist/chromium-release.zip
             dist/chromium-release.zip.sha256
             dist/firefox-release.zip
             dist/firefox-release.zip.sha256
+          body_path: ${{ steps.notes.outputs.body_file }}
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+
+      # Gitee 镜像失败不阻断发版：GitHub Release 已经建好、用户已经能下载。
+      # 但代价是失败不进 job 状态，只能看日志——所以关键失败一律 ::error:: 显式标注。
+      # 客户端已能自愈：Gitee 说"有新版却没附件"报明确错误，Gitee 镜像落后
+      # 而 GitHub 更新时，短超时复核会探测出来并改用 GitHub。
+      - name: Sync Release to Gitee
+        if: startsWith(github.ref, 'refs/tags/') && github.repository == 'soldier-cv/ZeroOmega'
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_BODY_FILE: ${{ steps.notes.outputs.gitee_body_file }}
+        run: |
+          set -eu
+          if [ -z "${GITEE_TOKEN:-}" ]; then
+            echo "::error::未配置 GITEE_TOKEN Secret，Gitee 镜像发布被跳过，国内用户将只能走 GitHub（常超时）。请在 GitHub 仓库 Settings → Secrets → Actions 添加 GITEE_TOKEN。"
+            exit 0
+          fi
+          TAG="$GITHUB_REF_NAME"
+          OWNER='huaxudong'
+          REPO='ZeroOmega'
+          API="https://gitee.com/api/v5/repos/$OWNER/$REPO/releases"
+
+          git remote add gitee "https://$OWNER:$GITEE_TOKEN@gitee.com/$OWNER/$REPO.git" 2>/dev/null || true
+          git push gitee "HEAD:refs/tags/$TAG" --force || echo "::warning::Gitee tag 推送失败（Release 仍会尝试创建）"
+
+          BODY=$(cat "$GITEE_BODY_FILE")
+          # Gitee WAF 对 JSON POST 返回 400，改用 -F 表单（feisuo 已实测）。
+          CREATE=$(curl -sS -X POST "$API" \
+            -F "access_token=$GITEE_TOKEN" \
+            -F "tag_name=$TAG" \
+            -F "target_commitish=custom_main" \
+            -F "name=ZeroOmega $TAG" \
+            -F "body=$BODY" \
+            -F "prerelease=false")
+          echo "Gitee create response: $CREATE"
+          ID=$(printf '%s' "$CREATE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+          if [ -z "$ID" ]; then
+            EXISTING=$(curl -sS "$API/tags/$TAG?access_token=$GITEE_TOKEN")
+            ID=$(printf '%s' "$EXISTING" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+            if [ -n "$ID" ]; then
+              curl -sS -X PATCH "$API/$ID" \
+                -F "access_token=$GITEE_TOKEN" \
+                -F "tag_name=$TAG" \
+                -F "name=ZeroOmega $TAG" \
+                -F "body=$BODY" >/dev/null || true
+            fi
+          fi
+          if [ -z "$ID" ]; then
+            echo "::error::未能获取 Gitee Release ID，附件未上传；若 Release 已建请到 Gitee 后台补传或删除"
+            exit 1
+          fi
+
+          ATT="$API/$ID/attach_files"
+          # 先清同名旧附件，避免重发同版本时 400 冲突。
+          OLD=$(curl -sS "$ATT?access_token=$GITEE_TOKEN" || true)
+          for f in dist/chromium-release.zip dist/chromium-release.zip.sha256 dist/firefox-release.zip dist/firefox-release.zip.sha256; do
+            NAME=$(basename "$f")
+            AID=$(printf '%s' "$OLD" | python3 -c "
+          import json,sys
+          name = sys.argv[1]
+          try:
+            arr = json.load(sys.stdin)
+          except Exception:
+            arr = []
+          print(next((str(x['id']) for x in arr if x.get('name') == name), ''))
+          " "$NAME" 2>/dev/null || true)
+            if [ -n "$AID" ]; then
+              curl -sS -X DELETE "$ATT/$AID?access_token=$GITEE_TOKEN" >/dev/null || true
+            fi
+            UPLOADED=''
+            for attempt in 1 2 3; do
+              RESP=$(curl -sS -X POST "$ATT?access_token=$GITEE_TOKEN" \
+                -F "access_token=$GITEE_TOKEN" \
+                -F "file=@$f;filename=$NAME;type=application/octet-stream")
+              if printf '%s' "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get('id') or d.get('browser_download_url')) else 1)" 2>/dev/null; then
+                UPLOADED=1
+                echo "Gitee 附件上传成功: $NAME"
+                break
+              fi
+              echo "第 $attempt 次上传 $NAME 失败: $RESP"
+              [ "$attempt" -eq 3 ] || sleep 3
+            done
+            if [ -z "$UPLOADED" ]; then
+              echo "::error::Gitee 附件 $NAME 上传失败；已建好的 Release 没有附件，客户端会报『发现新版本但没有附件』"
+              exit 1
+            fi
+          done
+          echo "Gitee Release 全部附件上传完毕（tag: $TAG, id: $ID）"

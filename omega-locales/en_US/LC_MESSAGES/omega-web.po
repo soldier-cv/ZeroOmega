@@ -492,7 +492,7 @@ msgid "options_updateLatest"
 msgstr "Up to date ($VERSION$)"
 
 msgid "options_updateFailed"
-msgstr "Cannot reach the release server"
+msgstr "Cannot reach the release sources (Gitee / GitHub)"
 
 msgid "options_updateStepCopy"
 msgstr "Copy the update command below"
@@ -516,10 +516,13 @@ msgid "options_updateCheckNow"
 msgstr "Check now"
 
 msgid "options_updateAuto"
-msgstr "Checked when the browser starts and every 6 hours; a new version shows a system notification."
+msgstr "Checked when the browser starts and every 6 hours (Gitee first, GitHub fallback); a new version shows a system notification."
 
 msgid "options_updateLastChecked"
 msgstr "Last checked: "
+
+msgid "options_updateSource"
+msgstr "Release source: "
 
 msgid "update_notifyTitle"
 msgstr "ZeroOmega $VERSION$ is available"

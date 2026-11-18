@@ -465,7 +465,7 @@ msgid "options_updateLatest"
 msgstr "已是最新（$VERSION$）"
 
 msgid "options_updateFailed"
-msgstr "连不上发布服务器"
+msgstr "连不上版本源（Gitee / GitHub）"
 
 msgid "options_updateStepCopy"
 msgstr "复制下面的更新命令"
@@ -489,10 +489,13 @@ msgid "options_updateCheckNow"
 msgstr "立即检查"
 
 msgid "options_updateAuto"
-msgstr "打开浏览器后和每 6 小时自动检查一次，有新版本会弹系统通知。"
+msgstr "打开浏览器后和每 6 小时自动检查一次（Gitee 优先、GitHub 兜底），有新版本会弹系统通知。"
 
 msgid "options_updateLastChecked"
 msgstr "上次检查："
+
+msgid "options_updateSource"
+msgstr "版本源："
 
 msgid "update_notifyTitle"
 msgstr "ZeroOmega 有新版本 $VERSION$"

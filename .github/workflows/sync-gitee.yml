@@ -1,0 +1,46 @@
+name: Sync to Gitee
+
+# 分支源码镜像：custom_main / master 推送时同步到 Gitee。
+# 打 tag 时的发版交付由 release.yml 统一处理，避免双重推送与并发冲突。
+on:
+  push:
+    branches:
+      - custom_main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: sync-gitee-branch
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -eu
+          export GIT_TERMINAL_PROMPT=0
+
+          if [ -z "${GITEE_TOKEN:-}" ]; then
+            echo "::error::未检测到 GITEE_TOKEN Secret，请在 GitHub 仓库 Settings → Secrets → Actions 中配置。"
+            exit 1
+          fi
+          if [ "${{ github.repository }}" != 'soldier-cv/ZeroOmega' ]; then
+            echo "非主仓库，跳过 Gitee 镜像推送。"
+            exit 0
+          fi
+
+          git remote add gitee "https://huaxudong:$GITEE_TOKEN@gitee.com/huaxudong/ZeroOmega.git"
+          BRANCH="${GITHUB_REF_NAME}"
+          git fetch origin "$BRANCH"
+          git checkout -B "$BRANCH" "origin/$BRANCH"
+          git push -u gitee "$BRANCH:$BRANCH" --force
+          echo "Gitee $BRANCH 镜像同步完成"

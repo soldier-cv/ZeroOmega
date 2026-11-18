@@ -555,6 +555,26 @@
 - **验证（2026-11-17）**：`npm run build` 全绿；浏览器 harness 复现「整域模式 + 残留 host 规则」场景，点 FIDDLER 后写入 `findfine.com` 与 `postest.findfine.com` 两条规则且勾选从 auto switch 跟到 FIDDLER；本页模式绑定区可见、点选只写当前 host；绑定子域立即写规则、× 即删；核对元素顺序（列表 → 作用范围 → 选项）与 SVG 图标。
 - **待实机**：重载扩展后确认（i18n 需重载才生效）。
 
+<a id="r28"></a>
+
+### R28. GitHub Actions 发版（GitHub + Gitee 双 Release）+ 更新检查改读 Releases API — 状态：**代码完成，构建与逻辑校验通过，待实机确认**（2026-11-18）
+
+- **背景**：本 fork 已开源（GitHub `soldier-cv/ZeroOmega`），华总另建 Gitee 镜像 `huaxudong/ZeroOmega` 供国内下载。原发布链是内网 Woodpecker（`.woodpecker.yml`）把包丢到 100.64.0.88 的 `/res/zeroomega/`；扩展的更新检查（`update_check.coffee`）读该服务器上的静态 `version.json`。对开源分发而言，GitHub Release 才是权威发布面，内网源既不对公网用户可见、也不是"包从哪来"的真相。
+- **已确认决策（D32 / D33 / D34）**：发版统一走 GitHub Actions，同时投递 GitHub Release 与 Gitee 镜像 Release；停用 Woodpecker。更新检查改为读两条 Releases API，Gitee 优先、GitHub 降级，保留既有定时/通知/「关于」页交互；未打包扩展仍用复制命令 + 重载，不静默自更新。
+- **实现（2026-11-18）**：
+  - `.github/workflows/release.yml`：重写。tag `v*` / 手动触发；新增「tag == 仓库 manifest == 包内 manifest」三处版本一致性校验与 CHANGELOG 段落检查（承接 AGENTS.md §2.13 的核对工作，分叉即失败）；构建后用 `zipfile` 复核包内版本；`sha256sum` 生成校验文件；发布说明从 CHANGELOG 对应版本段落提取（无段落回退最近提交）；`softprops/action-gh-release@v2` 上传两个 zip + 两个 sha256；随后 `Sync Release to Gitee` 用 `GITEE_TOKEN` 推 tag + 调 Gitee API v5 建/更新 Release + 先清同名旧附件再上传 4 个附件（`curl -F` 表单规避 WAF 对 JSON POST 的 400），失败只标 `::error::` 且 `continue-on-error` 不阻断 GitHub 发版。
+  - `.github/workflows/sync-gitee.yml`（新增）：`custom_main` / `master` 推送时把源码分支强制镜像到 Gitee；tag 发版交给 release.yml，避免双重推送。
+  - `omega-target-chromium-extension/src/module/update_check.coffee`：重写版本源。三级链路：Gitee API → GitHub API → GitHub `/releases/latest` 页面（跟随 302 从落地 URL 取 tag 再拼资产 URL）；Gitee 说"已是最新"时用 3 秒短超时向 GitHub 复核，探测失败维持原结论（不凭空提示有新版）；附件缺失报明确错误而非"无新版"；只放行 `gitee.com` / `github.com` / `objects.githubusercontent.com` / `github-releases.githubusercontent.com` 的 https 下载 URL；按 `navigator.userAgent` 选 `chromium-release.zip` / `firefox-release.zip`，兜底只接受 `.zip`；命令与说明页 URL 都来自当次发布响应（API 不可达时用 GitHub `/releases/latest/download/<asset>` 兜底命令）。原有 alarm（`omega.updateCheck`，启动 >30 分钟 + 每 6h）、每版本一次通知、点击打开「关于」保持不变；新增 `update.source` 状态。
+  - `omega-web/src/partials/about.jade`：新增一行显示本次版本源；i18n（`en_US` 源 + `zh_CN`）更新 `options_updateFailed` / `options_updateAuto`，新增 `options_updateSource`。
+  - 删除 `.woodpecker.yml`；`tools/ci/` 三个脚本为原静态接口的历史遗留，不再有 CI 引用。
+- **取代关系**：R14 的"发布清单 → 命令"、R15 的静态 `version.json` / `version.txt` 端点与 D18 不再作为版本源；background 定时 + 每版本通知 + 「关于」UI（D20 / D34）保留。
+- **验证（2026-11-18）**：
+  - CoffeeScript 编译通过；`npm run build` 全绿（coffeelint 全过；首轮提交曾有 14 处超 80 列，均已折行修正），`npm run release` 实际产出 `dist/chromium-release.zip`（1,934,305 B）与 `dist/firefox-release.zip`（1,934,341 B），包内 manifest 版本均为 3.7.2；新 i18n 键 `options_updateSource` 已进入 en / zh / zh_CN 的 `messages.json`。
+  - omega-target **19 passing / 0 failing**；omega-pac **143 passing / 1 failing**（既有 SOCKS5 用例，无新增回归）。
+  - 两份 workflow YAML 经 PyYAML 解析通过；`Verify packaged version` 与 `Resolve release notes` 两段内嵌 Python 用真实 dist 包 / CHANGELOG 单独跑通（3.7.2 段落提取 520 字符）。
+  - 更新检查 fetch 桩（临时 JS harness，不入库）9 个场景全过：Gitee 发现新版、Gitee 已是最新→GitHub 复核发现更新、复核失败维持无新版、Gitee 挂→GitHub 降级、两 API 挂→Releases 页面兜底拼 URL、不可信下载 URL 被拒、只有源码包时降级取正确资产、Firefox 选 firefox 资产、同版本只通知一次。该桩曾抓到重构时误把 Gitee API 写成 `https://gitee.com/<owner>/<repo>`（丢掉 `/api/v5/repos/`），已修复。
+- **待实机**：重载扩展后确认（i18n 需重载才生效）；真正打 tag 前须按 AGENTS.md §2.13 核对版本/CHANGELOG/workflow，并在 GitHub 仓库配置 `GITEE_TOKEN` Secret。
+
 ## 决策与机制原文（2026-11-17 从 AGENTS.md 迁出，原样保留）
 
 > 下表是迁出时决策日志的全文（仍有效与已被取代的都在）。此前档案中的 D6 / D7 / D11 / D12 / D13 与本表对应行逐字相同，不再另列。

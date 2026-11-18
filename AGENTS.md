@@ -45,7 +45,7 @@
     - 改动涉及规则匹配 / PAC 生成时，注意不要引入 O(n²) 或每次请求都重算的开销。
 12. **分支纪律（硬性）**：所有开发、提交、打 tag 都在 **`custom_main`** 上进行；`master` 只作为上游基线（v3.5.2，与 `origin/master` 同步），**不在 master 上提交、不在 master 上打 tag**。发版 tag 打在 `custom_main` 的发布提交上，不要为 tag 单独切分支或合并到 master。
 13. **打 tag 前必须核对（硬性）**：tag 指向的提交必须同时满足三条，否则打错了流水线会发出旧版本（v3.7.2 曾把 tag 打在纯文档提交上，分发产物是 3.7.1）：
-    - `git show <commit>:omega-target-chromium-extension/overlay/manifest.json` 的 `version` 等于 tag 名去掉 `v`；
+    - `overlay/manifest.json` **与** `overlay/manifest-firefox.json` 的 `version` 都等于 tag 名去掉 `v`（两份 manifest 各自生成 chromium / firefox 包，只改一份会发出版本不一致的包）；
     - `CHANGELOG.md` 有该版本段落；
     - `.github/workflows/release.yml` 是该提交自己的版本（GitHub Actions 只读 tag 指向提交的 workflow，打在旧提交上会用旧的 CI 配置构建；流水线另有「包内版本 == tag」与发布说明段落两道复核）。
     tag 打在合并提交上时，须确认发布提交与 CI 改动都在其祖先里。
@@ -81,7 +81,7 @@ R24. WebDAV 首次连接只读不上传（默认配置不再覆盖服务器备�
 R25. popup 去掉「全局 / 本页」切换：一址一「当前」规则 + 选项里的「默认」 — 状态：构建与浏览器校验通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r25
 R26. 页面规则自动清理与默认情景模式相同的冗余项 — 状态：构建与单测通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r26
 R27. popup「作用范围」开关（本页 / 整域通配符）+ 绑定子域添加即绑定 + 样式重做 — 状态：构建与浏览器校验通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r27
-R28. GitHub Actions 发版（GitHub + Gitee 双 Release）+ 更新检查改读 Releases API（Gitee 优先、GitHub 降级） — 状态：代码完成，构建与逻辑校验通过，待实机确认（2026-11-18）→ 详见 docs/requirements-log.md#r28
+R28. GitHub Actions 发版（GitHub + Gitee 双 Release）+ 更新检查改读 Releases API（Gitee 优先、GitHub 降级） — 状态：已发版 v3.7.3，待实机确认（2026-11-18）→ 详见 docs/requirements-log.md#r28
 
 ## 4. 项目基础架构
 

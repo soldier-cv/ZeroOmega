@@ -5,6 +5,13 @@
 
 > 不主动与上游同步（见 `AGENTS.md` §0）。
 
+## 3.7.3
+
+### 变更
+
+- **发版改走 GitHub Actions 并同时投递 GitHub / Gitee 双 Release**：`v*` tag 触发构建，校验 tag、仓库 manifest 与包内 manifest 三处版本一致；产物为 `chromium-release.zip` / `firefox-release.zip` 及 sha256。Gitee 镜像同步失败只标注错误、不阻断 GitHub 发版；源码分支也镜像到 Gitee。原 Woodpecker 内网分发停用。
+- **更新检查改读 GitHub / Gitee Releases API**：Gitee 优先、GitHub 复核与降级、Releases 页面兜底；镜像说"已是最新"时短超时复核，附件缺失报明确错误；按浏览器选 Chromium / Firefox 包，设置页「关于」显示本次版本源。
+
 ## 3.7.2
 
 ### 变更

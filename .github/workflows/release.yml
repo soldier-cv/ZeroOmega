@@ -37,9 +37,18 @@ jobs:
         id: ver
         run: |
           set -eu
-          MANIFEST='omega-target-chromium-extension/overlay/manifest.json'
-          CURRENT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$MANIFEST")
-          echo "manifest version: $CURRENT"
+          # 两份 manifest 各自生成 chromium / firefox 包，必须都与 tag 一致。
+          MANIFESTS='omega-target-chromium-extension/overlay/manifest.json omega-target-chromium-extension/overlay/manifest-firefox.json'
+          CURRENT=''
+          for MANIFEST in $MANIFESTS; do
+            V=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$MANIFEST")
+            echo "$MANIFEST version: $V"
+            if [ -z "$CURRENT" ]; then CURRENT="$V"; fi
+            if [ "$V" != "$CURRENT" ]; then
+              echo "::error::两份 manifest 版本不一致（$CURRENT / $V），会发出版本不同的两个包"
+              exit 1
+            fi
+          done
           if [ "${{ github.ref_type }}" = "tag" ]; then
             TAG="${{ github.ref_name }}"
             VER=$(printf '%s' "$TAG" | sed -E 's/^[vV]//')
@@ -48,7 +57,7 @@ jobs:
               exit 1
             fi
             if [ "$VER" != "$CURRENT" ]; then
-              echo "::error::tag 版本 $VER 与 manifest.json 版本 $CURRENT 不一致；请按 AGENTS.md §2.13 先对齐再打 tag"
+              echo "::error::tag 版本 $VER 与 manifest 版本 $CURRENT 不一致；请按 AGENTS.md §2.13 先对齐再打 tag"
               exit 1
             fi
           else

@@ -572,8 +572,10 @@
   - CoffeeScript 编译通过；`npm run build` 全绿（coffeelint 全过；首轮提交曾有 14 处超 80 列，均已折行修正），`npm run release` 实际产出 `dist/chromium-release.zip`（1,934,305 B）与 `dist/firefox-release.zip`（1,934,341 B），包内 manifest 版本均为 3.7.2；新 i18n 键 `options_updateSource` 已进入 en / zh / zh_CN 的 `messages.json`。
   - omega-target **19 passing / 0 failing**；omega-pac **143 passing / 1 failing**（既有 SOCKS5 用例，无新增回归）。
   - 两份 workflow YAML 经 PyYAML 解析通过；`Verify packaged version` 与 `Resolve release notes` 两段内嵌 Python 用真实 dist 包 / CHANGELOG 单独跑通（3.7.2 段落提取 520 字符）。
+  - 发版前核对又抓到一处版本分叉：Firefox 包由独立的 `overlay/manifest-firefox.json` 生成，初次递增只改了 chromium 的 manifest，导致 Firefox 包仍是 3.7.2。已同步两份 manifest，并把「双 manifest 必须同版本」写进 AGENTS.md §2.13 与流水线的前置校验；重构建后两个包均为 3.7.3。
   - 更新检查 fetch 桩（临时 JS harness，不入库）9 个场景全过：Gitee 发现新版、Gitee 已是最新→GitHub 复核发现更新、复核失败维持无新版、Gitee 挂→GitHub 降级、两 API 挂→Releases 页面兜底拼 URL、不可信下载 URL 被拒、只有源码包时降级取正确资产、Firefox 选 firefox 资产、同版本只通知一次。该桩曾抓到重构时误把 Gitee API 写成 `https://gitee.com/<owner>/<repo>`（丢掉 `/api/v5/repos/`），已修复。
-- **待实机**：重载扩展后确认（i18n 需重载才生效）；真正打 tag 前须按 AGENTS.md §2.13 核对版本/CHANGELOG/workflow，并在 GitHub 仓库配置 `GITEE_TOKEN` Secret。
+- **发版（2026-11-18）**：按 AGENTS.md §2.13 核对后递增版本至 3.7.3、补 CHANGELOG 段落，提交打 tag `v3.7.3` 并推送，由新 workflow 触发 GitHub + Gitee 双 Release；`GITEE_TOKEN` 已配置。
+- **待实机**：重载扩展后确认（i18n 需重载才生效）。
 
 ## 决策与机制原文（2026-11-17 从 AGENTS.md 迁出，原样保留）
 

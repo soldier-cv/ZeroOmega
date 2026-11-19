@@ -214,7 +214,9 @@ angular.module('omegaTarget', []).factory 'omegaTarget', ($q) ->
     syncTempRulesNow: -> callBackground('syncTempRulesNow')
     getUpdateStatus: -> callBackground('getUpdateStatus')
     checkUpdateNow: -> callBackground('checkUpdateNow')
-    reloadExtension: -> chrome.runtime.reload()
+    # Reload via the background so it can record and later restore this tab.
+    # No reply: the background dies before it could send one.
+    reloadExtension: -> callBackgroundNoReply('reloadExtension')
     setRequestInfoCallback: (callback) ->
       requestInfoCallback = callback
 

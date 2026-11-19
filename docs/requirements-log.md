@@ -588,6 +588,19 @@
 - **验证（2026-11-19）**：`npm run build` 全绿（仅 jade 2 条既有 warning、po2json 1 条既有 deprecation）；构建产物 `build/popup/js/profiles.js` 含新 key 逻辑；`git diff` 仅一处源文件改动。
 - **待实机**：重载扩展后确认两个子域的 chip 列表互不影响；旧的按主域 chip 需重新添加。
 
+<a id="r30"></a>
+
+### R30. 设置页「关于」的「重载扩展」不再关闭设置窗口 — 状态：**构建通过，待实机确认**（2026-11-19）
+
+- **背景**：华总反馈点设置页「关于」里的「重载扩展」后，设置窗口被关掉。根因是 `omega_target_web.coffee` 的 `reloadExtension()` 直接调 `chrome.runtime.reload()`；扩展重载会卸载它的所有页面，设置页标签随之消失。
+- **已确认决策（D36）**：重载改走后台——先把发起重载的设置页标签记下来，新后台启动后再恢复，而不是让用户自己去找回窗口。
+- **实现（2026-11-19）**：
+  - `omega-target-chromium-extension/src/coffee/omega_target_web.coffee`：`reloadExtension()` 改为 `callBackgroundNoReply('reloadExtension')`，不再直接调 `chrome.runtime.reload()`（后台在响应前就死了，所以不等回复）。
+  - `omega-target-chromium-extension/src/coffee/background.coffee`：`onMessage` 新增 `reloadExtension` 分支，把 `sender.tab` 的 `id` / `windowId` 存进 state（`pendingOptionsTab` / `pendingOptionsWindowId`）后再重载；`options.ready` 后检查哨兵并清除——原标签还在就 `chrome.tabs.reload()`，已关闭则用原 `windowId` 新建 `options.html`，窗口 id 失效则回退为不带 windowId 新建。
+- **验证（2026-11-19）**：`npm run build` 全绿（首轮 coffeelint 报 3 处超 80 列，已折行）；无文案 / i18n 改动。
+- **已知边界**：右键扩展图标菜单里的「重载」仍走 `background_preload.coffee` 里原有的直接 `chrome.runtime.reload()`，不会恢复设置页；本次未改（华总反馈的是「关于」页那个按钮）。
+- **待实机**：点「重载扩展」后设置页应保留（刷新或自动重开）；确认没有重复标签、也没有每次浏览器启动都误恢复。
+
 ## 决策与机制原文（2026-11-17 从 AGENTS.md 迁出，原样保留）
 
 > 下表是迁出时决策日志的全文（仍有效与已被取代的都在）。此前档案中的 D6 / D7 / D11 / D12 / D13 与本表对应行逐字相同，不再另列。

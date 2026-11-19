@@ -238,6 +238,27 @@ zeroBackground = (zeroStorage, opts) ->
 
   options.initWithOptions(null, startupCheck)
 
+  # Restore the settings tab that a reload from the About page just closed.
+  # A surviving tab only needs a refresh; a closed one is recreated, keeping
+  # its original window when that window still exists.
+  do ->
+    options.ready.then ->
+      keys = ['pendingOptionsTab', 'pendingOptionsWindowId']
+      state.get(keys).then (values) ->
+        tabId = values.pendingOptionsTab
+        return unless tabId?
+        state.remove(keys)
+        createOptions = ->
+          opts = {url: chrome.runtime.getURL('options.html')}
+          if values.pendingOptionsWindowId?
+            opts.windowId = values.pendingOptionsWindowId
+          chrome.tabs.create(opts).catch ->
+            delete opts.windowId
+            chrome.tabs.create(opts)
+        chrome.tabs.get(tabId).then ((tab) ->
+          chrome.tabs.reload(tab.id)
+        ), -> createOptions()
+
   # The first iOS theme pass shipped interactive states in gray (text selection,
   # input focus ring, button hover outline) and stored CSS snapshots without a
   # theme marker. Rebuild those snapshots from the current built-in files so
@@ -485,12 +506,26 @@ zeroBackground = (zeroStorage, opts) ->
         chrome.storage.sync.clear(),
         chrome.storage.local.clear()
       ])
+
+  # Reloading the extension closes its pages, including the options tab that
+  # hosts the "重载扩展" button. Remember that tab so the new background can
+  # bring it back instead of leaving the user staring at a closed window.
+  reloadExtension = (tab) ->
+    state.set({
+      pendingOptionsTab: tab?.id
+      pendingOptionsWindowId: tab?.windowId
+    }).then ->
+      chrome.runtime.reload()
+
   chrome.runtime.onMessage.addListener (request, sender, respond) ->
     return unless request and request.method
     options.ready.then ->
       if request.method == 'resetAllOptions'
         target = globalThis
         method = resetAllOptions
+      else if request.method == 'reloadExtension'
+        target = globalThis
+        method = -> reloadExtension(sender.tab)
       else if request.method == 'getState'
         target = state
         method = state.get

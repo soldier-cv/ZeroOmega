@@ -83,6 +83,7 @@ R26. 页面规则自动清理与默认情景模式相同的冗余项 — 状态�
 R27. popup「作用范围」开关（本页 / 整域通配符）+ 绑定子域添加即绑定 + 样式重做 — 状态：构建与浏览器校验通过，待实机确认（2026-11-17）→ 详见 docs/requirements-log.md#r27
 R28. GitHub Actions 发版（GitHub + Gitee 双 Release）+ 更新检查改读 Releases API（Gitee 优先、GitHub 降级） — 状态：已发版 v3.7.3，待实机确认（2026-11-18）→ 详见 docs/requirements-log.md#r28
 R29. popup 作用范围 / 绑定 chip 改为按 host 存 — 状态：构建通过，待实机确认（2026-11-19）→ 详见 docs/requirements-log.md#r29
+R30. 设置页「关于」的「重载扩展」不再关闭设置窗口 — 状态：构建通过，待实机确认（2026-11-19）→ 详见 docs/requirements-log.md#r30
 
 ## 4. 项目基础架构
 
@@ -177,3 +178,4 @@ cd omega-target && npm test
 | D33 | 更新检查读 Releases API：Gitee 主通道 → GitHub API（复核/降级）→ Releases 页面兜底；只放行官方域名与 `.zip` 资产；按浏览器选 chromium / firefox 包 | 只读单一静态 version.json / 信任响应里的任意下载 URL | Gitee 镜像会落后，短超时复核可自愈；附件缺失必须报错而非"无新版"；远端 URL 是安全边界，不能让伪造响应把命令指向任意程序 |
 | D34 | 更新检查保留 background 定时（启动 + 每 6h）+ 每版本一次通知 + 设置页「关于」UI；未打包扩展仍用复制命令 + 重载，不静默自更新 | 改用自动下载安装 / 把入口放回 popup | 扩展无法改写自身文件；更新是低频事，popup 空间宝贵 |
 | D35 | popup「作用范围」开关与绑定 chip 的偏好按 **host** 存（`omega.popup.linkGroup:<host>`），不再按主域；路由规则仍只按目标 host 存一份 | 继续按主域存 / 按「发起页 + 目标 host」存 | 按主域会让兄弟子域共享开关与 chip，与「本页」文案矛盾且从一处删除波及另一页；按页对存需要 per-tab 路由（D5，Chrome 做不到） |
+| D36 | 「重载扩展」走后台：重载前记下设置页 tab/window，新后台启动后恢复该标签（还在则刷新、已关则用原窗口重建，窗口失效则回退新窗口） | 页面直接 `chrome.runtime.reload()` / 让用户去 `chrome://extensions` 手动重载 | 直接重载会卸载扩展所有页面、设置窗口消失；经后台记录可在重载后把设置页带回来 |

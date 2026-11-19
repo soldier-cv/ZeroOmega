@@ -577,6 +577,17 @@
 - **发版（2026-11-18）**：按 AGENTS.md §2.13 核对后递增版本至 3.7.3、补 CHANGELOG 段落，提交打 tag `v3.7.3` 并推送，由新 workflow 触发 GitHub + Gitee 双 Release；`GITEE_TOKEN` 已配置。
 - **待实机**：重载扩展后确认（i18n 需重载才生效）。
 
+<a id="r29"></a>
+
+### R29. popup 作用范围 / 绑定 chip 改为按 host 存 — 状态：**构建通过，待实机确认**（2026-11-19）
+
+- **背景**：华总同时打开 `postest.findfine.com`（FIDDLER）与 `ffpos.findfine.com`（VPN），两者作用范围都是「本页」，但两个 popup 都显示同一条绑定 chip `ffpos-api.findfine.com → VPN`，从任一处删除会波及另一页。根因是 `linkKey()` 用 `info.domain`，把开关与 chip 列表按主域 `findfine.com` 存进 `omega.popup.linkGroup`，而文案写的是「仅 <host> 本站」。**路由规则本身没问题**（各自 host 规则独立），串掉的是这组 UI 偏好。
+- **已确认决策（D35）**：开关与绑定列表按 host 存；路由规则仍只按目标 host 一份，不按「发起页 + 目标 host」拆（Chrome 无 per-tab 路由，D5）。
+- **实现（2026-11-19）**：`omega-web/src/popup/js/profiles.js` 的 `linkKey()` 改用 `info.host`；同步改注释说明为何不用主域。`inDomain()` 仍用主域校验可绑定的 host，绑定区显示条件不变。
+- **影响**：旧的 `omega.popup.linkGroup:findfine.com` 偏好不再读取，chip 需重新绑定一次；`state.tempRules` 里的实际 host 规则不受影响，无需重配路由。两个子域从此各自独立显示 chip 与开关状态。
+- **验证（2026-11-19）**：`npm run build` 全绿（仅 jade 2 条既有 warning、po2json 1 条既有 deprecation）；构建产物 `build/popup/js/profiles.js` 含新 key 逻辑；`git diff` 仅一处源文件改动。
+- **待实机**：重载扩展后确认两个子域的 chip 列表互不影响；旧的按主域 chip 需重新添加。
+
 ## 决策与机制原文（2026-11-17 从 AGENTS.md 迁出，原样保留）
 
 > 下表是迁出时决策日志的全文（仍有效与已被取代的都在）。此前档案中的 D6 / D7 / D11 / D12 / D13 与本表对应行逐字相同，不再另列。

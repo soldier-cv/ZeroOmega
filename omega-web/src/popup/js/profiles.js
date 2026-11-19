@@ -173,14 +173,16 @@
   }
 
   // ---- Scope: this host, or the whole-domain wildcard ---------------------
-  // The switch is a persisted per-domain UI preference: it only chooses where
+  // The switch is a persisted per-host UI preference: it only chooses where
   // the next profile click writes, and never changes rules by itself. A host
   // added in the input is bound immediately to the profile now in effect.
+  // Keyed by host, not the main domain, so sibling subdomains do not share the
+  // switch or the bound-host chips while the UI calls it "this site".
 
   function linkKey() {
     var info = OmegaPopup.pageInfo;
-    var domain = info && info.domain;
-    return domain ? LINK_PREF + ':' + domain : null;
+    var host = info && info.host;
+    return host ? LINK_PREF + ':' + host : null;
   }
 
   function loadLinkPref() {

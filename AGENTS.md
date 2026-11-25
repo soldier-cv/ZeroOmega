@@ -84,6 +84,7 @@ R27. popup「作用范围」开关（本页 / 整域通配符）+ 绑定子域�
 R28. GitHub Actions 发版（GitHub + Gitee 双 Release）+ 更新检查改读 Releases API（Gitee 优先、GitHub 降级） — 状态：已发版 v3.7.3，待实机确认（2026-11-18）→ 详见 docs/requirements-log.md#r28
 R29. popup 作用范围 / 绑定 chip 改为按 host 存 — 状态：构建通过，待实机确认（2026-11-19）→ 详见 docs/requirements-log.md#r29
 R30. 设置页「关于」的「重载扩展」不再关闭设置窗口 — 状态：构建通过，待实机确认（2026-11-19）→ 详见 docs/requirements-log.md#r30
+R31. 点情景模式时绑定 chip 未跟随更新（页面切了、API host 仍是旧 profile） — 状态：构建与逻辑校验通过，待实机确认（2026-11-25）→ 详见 docs/requirements-log.md#r31
 
 ## 4. 项目基础架构
 
@@ -179,3 +180,4 @@ cd omega-target && npm test
 | D34 | 更新检查保留 background 定时（启动 + 每 6h）+ 每版本一次通知 + 设置页「关于」UI；未打包扩展仍用复制命令 + 重载，不静默自更新 | 改用自动下载安装 / 把入口放回 popup | 扩展无法改写自身文件；更新是低频事，popup 空间宝贵 |
 | D35 | popup「作用范围」开关与绑定 chip 的偏好按 **host** 存（`omega.popup.linkGroup:<host>`），不再按主域；路由规则仍只按目标 host 存一份 | 继续按主域存 / 按「发起页 + 目标 host」存 | 按主域会让兄弟子域共享开关与 chip，与「本页」文案矛盾且从一处删除波及另一页；按页对存需要 per-tab 路由（D5，Chrome 做不到） |
 | D36 | 「重载扩展」走后台：重载前记下设置页 tab/window，新后台启动后恢复该标签（还在则刷新、已关则用原窗口重建，窗口失效则回退新窗口） | 页面直接 `chrome.runtime.reload()` / 让用户去 `chrome://extensions` 手动重载 | 直接重载会卸载扩展所有页面、设置窗口消失；经后台记录可在重载后把设置页带回来 |
+| D37 | 绑定 chip 是「跟随本页」而非快照：点情景模式时把新 profile 同时写到所有已绑定 host，并更新 chip 文案与偏好；整域模式也写，以免旧 host 规则遮蔽新域规则 | 只在切换作用域 / 重新绑定时更新 chip / chip 只显示添加时的 profile | 绑定的目的就是页面和 API 一起切；只写当前 host 会让 API 仍走旧 profile，用户看到「上面改了下面没改」 |

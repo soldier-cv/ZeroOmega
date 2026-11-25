@@ -160,6 +160,11 @@
   function applyPageProfile(profileName) {
     if (!validProfileName(profileName)) return;
     if (!writePageRoute(profileName, true, linkedTargets())) return;
+    // Bound hosts follow this page's profile, so keep their chips in step.
+    if (linkPref) {
+      linkPref.manual.forEach(function(item) { item.profile = profileName; });
+      saveLinkPref();
+    }
     renderCurrent();
     renderLinkSection();
     // The optimistic rule in writePageRoute is what was just applied; a
@@ -238,13 +243,23 @@
   function linkedTargets() {
     var info = OmegaPopup.pageInfo;
     if (!info) return [];
+    if (!linkPref) linkPref = loadLinkPref();
+    var targets = [];
     // In whole-domain mode also write the current host with the same profile.
     // A lingering host rule would otherwise shadow the wildcard rule and the
     // page (and the check) would keep following the old profile.
     if (isWildcard() && info.domain) {
-      return info.host ? [info.domain, info.host] : [info.domain];
+      targets = info.host ? [info.domain, info.host] : [info.domain];
+    } else if (info.host) {
+      targets = [info.host];
     }
-    return info.host ? [info.host] : [];
+    // Bound hosts exist to move together with this page. Write the new profile
+    // to each of them too; even in wildcard mode they may hold an older host
+    // rule that would shadow the freshly written domain rule.
+    linkPref.manual.forEach(function(item) {
+      if (targets.indexOf(item.host) === -1) targets.push(item.host);
+    });
+    return targets;
   }
 
   function renderLinkSection() {

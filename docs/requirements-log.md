@@ -601,6 +601,16 @@
 - **已知边界**：右键扩展图标菜单里的「重载」仍走 `background_preload.coffee` 里原有的直接 `chrome.runtime.reload()`，不会恢复设置页；本次未改（华总反馈的是「关于」页那个按钮）。
 - **待实机**：点「重载扩展」后设置页应保留（刷新或自动重开）；确认没有重复标签、也没有每次浏览器启动都误恢复。
 
+<a id="r31"></a>
+
+### R31. 点情景模式时绑定 chip 未跟随更新 — 状态：**构建与逻辑校验通过，待实机确认**（2026-11-25）
+
+- **背景**：华总截图里 `ffpos.findfine.com` 的当前情景模式已切到 `[直接连接]`，下方绑定 chip `ffpos-api.findfine.com` 仍显示 `VPN`。「点上面、下面不跟着改」，与绑定子域「页面和 API 一起切」的初衷矛盾（R27）。R29 已把开关与 chip 偏好改按 host 存，但 chip 的 profile 仍是添加那一刻的快照：点情景模式只写 `linkedTargets()`（本页 `host`，整域 `domain + host`），不含已绑定的 host，且其偏好里的 `profile` 从不更新。
+- **已确认决策（D37）**：绑定 chip = 跟随本页，不是快照。点情景模式时把新 profile 写到所有已绑定 host，并同步 chip 文案与偏好；整域模式同样写，否则绑定的 host 上残留的旧 host 规则会遮蔽新写的整域规则。
+- **实现（2026-11-25）**：`omega-web/src/popup/js/profiles.js`：`linkedTargets()` 在原有作用域目标之外追加 `linkPref.manual` 里的 host（去重）；`applyPageProfile()` 在写入成功后把 `linkPref.manual[].profile` 全部更新为新 profile 并 `saveLinkPref()`，随后 `renderLinkSection()` 重绘 chip。仍是整组写入只在最后一个目标触发一次刷新。
+- **验证（2026-11-25）**：`npm run build` 全绿（仅 jade 2 条既有 warning、po2json 1 条既有 deprecation）。临时 Node harness（不入库，桩 DOM / localStorage / chrome API）三场景通过：① 本页模式点 `fid` → 写入 `ffpos.findfine.com` + 两个绑定 host 全部 `fid`，chip 文案与偏好同步，仅最后一次写入带 `refresh`；② 整域模式点 `vpn` → 依次写 `findfine.com` / 本页 host / 两个绑定 host，全部 `vpn`；③ 绑定新 host（粘贴带路径的 URL）→ 以当前生效 profile 落规则并生成 chip。
+- **待实机**：重载扩展后，在 `ffpos.findfine.com` 点不同情景模式，确认 `ffpos-api.findfine.com` chip 文案与实际路由同步变化；整域模式下同样跟随；`×` 解绑仍只删该 host 规则。
+
 ## 决策与机制原文（2026-11-17 从 AGENTS.md 迁出，原样保留）
 
 > 下表是迁出时决策日志的全文（仍有效与已被取代的都在）。此前档案中的 D6 / D7 / D11 / D12 / D13 与本表对应行逐字相同，不再另列。
